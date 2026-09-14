@@ -1,25 +1,23 @@
 # **************************************************************************** #
 #                                                                              #
 #                                                         :::      ::::::::    #
-#    rent.py                                            :+:      :+:    :+:    #
+#    dice.py                                            :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
 #    By: alechin <alechin@student.42kl.edu.my>      +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2026/09/14 12:58:25 by alechin           #+#    #+#              #
-#    Updated: 2026/09/14 12:58:25 by alechin          ###   ########.fr        #
+#    Created: 2026/09/14 13:33:28 by alechin           #+#    #+#              #
+#    Updated: 2026/09/14 13:33:28 by alechin          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
-def payRent(rent, cash):
-	if rent > cash:
-		return cash
-	return rent - cash
+import random
 
-def calculateRent(cash):
-	pass
+# ------------------------
+# DICE LOGIC
+# ------------------------
 
-def buyProperty():
-	pass
-
-def mortgage(playerId):
-	pass
+def dice(n):
+	total = 0
+	for i in range(n):
+		total += random.randint(1, 6)
+	return total

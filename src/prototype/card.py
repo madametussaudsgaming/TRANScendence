@@ -1,25 +1,15 @@
 # **************************************************************************** #
 #                                                                              #
 #                                                         :::      ::::::::    #
-#    rent.py                                            :+:      :+:    :+:    #
+#    card.py                                            :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
 #    By: alechin <alechin@student.42kl.edu.my>      +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2026/09/14 12:58:25 by alechin           #+#    #+#              #
-#    Updated: 2026/09/14 12:58:25 by alechin          ###   ########.fr        #
+#    Created: 2026/09/14 13:58:25 by alechin           #+#    #+#              #
+#    Updated: 2026/09/14 13:58:25 by alechin          ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
-def payRent(rent, cash):
-	if rent > cash:
-		return cash
-	return rent - cash
-
-def calculateRent(cash):
-	pass
-
-def buyProperty():
-	pass
-
-def mortgage(playerId):
-	pass
+# ------------------------
+# CARDS
+# ------------------------
