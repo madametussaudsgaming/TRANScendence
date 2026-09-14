@@ -1,0 +1,95 @@
+{
+	"board_size": 40,
+	"tiles": [
+		{
+			"position": 0,
+			"type": "go",
+			"name": "GO"
+		},
+		{
+			"position": 1,
+			"type": "property",
+			"name": "TEMP",
+			"price": 60,
+			"group": "yellow",
+			"rentLevels": [2, 10, 30, 90, 160, 250],
+			"houseCost": 50,
+			"mortgageValue": 30
+		},
+		{
+			"position": 2,
+			"type": "communityChest",
+			"name": "Community Chest"
+		},
+		{
+			"position": 3,
+			"type": "property",
+			"name": "TEMP",
+			"price": 60,
+			"group": "yellow",
+			"rentLevels": [4, 20, 60, 180, 320, 450],
+			"houseCost": 50,
+			"mortgageValue": 30
+		},
+		{
+			"position": 4,
+			"type": "tax",
+			"name": "Income Tax",
+			"amount": 200
+		},
+		{
+			"position": 5,
+			"type": "railroad",
+			"name": "Reading Railroad",
+			"price": 200,
+			"mortgageValue": 100
+		},
+		{
+			"position": 6,
+			"type": "property",
+			"name": "TEMP",
+			"price": 100,
+			"group": "blue",
+			"rentLevels": [6, 30, 90, 270, 400, 550],
+			"houseCost": 50,
+			"mortgageValue": 50
+		},
+		{
+			"position": 7,
+			"type": "chance",
+			"name": "Chance"
+		},
+		{
+			"position": 10,
+			"type": "jail",
+			"name": "Jail / Just Visiting"
+		},
+		{
+			"position": 12,
+			"type": "utility",
+			"name": "Electric Company",
+			"price": 150,
+			"mortgageValue": 75
+		},
+		{
+			"position": 20,
+			"type": "freeParking",
+			"name": "Free Parking"
+		},
+		{
+			"position": 30,
+			"type": "goToJail",
+			"name": "Go To Jail"
+		},
+		{
+			"position": 39,
+			"type": "property",
+			"name": "Boardwalk",
+			"price": 400,
+			"group": "blue",
+			"rentLevels": [50, 200, 600, 1400, 1700, 2000],
+			"houseCost": 200,
+			"mortgageValue": 200
+		}
+	]
+}
