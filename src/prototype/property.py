@@ -26,3 +26,5 @@ def buyProperty(playerId, position):
 
 def mortgage(playerId, position):
 	pass
+
+# the variables for property will be mortgageValue, baseRent, baseRent with color set, rent for buildings 1-5, color set value, funValue
