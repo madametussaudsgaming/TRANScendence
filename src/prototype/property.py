@@ -10,6 +10,9 @@
 #                                                                              #
 # **************************************************************************** #
 
+def nameProperty(name):
+	pass
+
 def payRent(rent, cash):
 	if rent > cash:
 		return cash
@@ -18,8 +21,8 @@ def payRent(rent, cash):
 def calculateRent(cash):
 	pass
 
-def buyProperty():
+def buyProperty(playerId, position):
 	pass
 
-def mortgage(playerId):
+def mortgage(playerId, position):
 	pass

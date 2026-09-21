@@ -13,3 +13,9 @@
 # ------------------------
 # CARDS
 # ------------------------
+
+class ChanceCard:
+	pass
+
+class CommunityChestCard:
+	pass

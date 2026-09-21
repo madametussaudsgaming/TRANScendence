@@ -20,10 +20,10 @@ from prototype.trading import offerPurchase
 # CORE GAME LOGIC
 # ---------------------------
 
-def newGame():
+def newGame(names):
 	pass
 
-def rollNMove():
+def rollNMove(playerId):
 	pass
 
 def sendToJail():
