@@ -31,8 +31,34 @@ class preGame:
 	# while in lobby
 	# when receive enter button, take user credentials and username (protect from sql injection), make a temp player, add to an array
 	# when every player currently joined presses 'ready' OR 4 players have been reached, then a countdown of 10 seconds happens then the game starts.
-	#if a player disconnects during this time, then everyone's no longer ready. if somebody clicks the button again (un ready) everyone is no longer ready
-	
+	#if a player disconnects during this time, then everyone's no longer ready. if somebody clicks the button again (un-ready) everyone is no longer ready
+
+
+	def __init__(self):
+		self.players = []
+
+	def	getTempPlayer(self, ID):
+		for p in self.players:
+			if p.playerID == ID:
+				return p
+		print ("[DEBUG] Player Not Found")
+
+	def tempPlayerJoin(self, ID, username):
+		self.players.append(Player(ID, username))
+
+	def tempPlayerLeft(self, ID):
+		target = self.getTempPlayer(ID)
+		self.players.remove(target)
+
+
+
+	players.append(createTemp(credentials, username, ID))
+	if (signalPlayerLeave):
+
+	#ONCE REACCHED WE"RE USING WEBSOCKETS, leaveGame and startGame on the website side
+	#we need to create an array of Player(class) by the time preGame ends to give to Game
+
+
 
 
 
