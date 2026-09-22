@@ -26,6 +26,17 @@ class Player:
 		self.getOutOfJailCards = 0
 		self.bankrupt = False
 
+
+class preGame:
+	# while in lobby
+	# when receive enter button, take user credentials and username (protect from sql injection), make a temp player, add to an array
+	# when every player currently joined presses 'ready' OR 4 players have been reached, then a countdown of 10 seconds happens then the game starts.
+	#if a player disconnects during this time, then everyone's no longer ready. if somebody clicks the button again (un ready) everyone is no longer ready
+	
+
+
+
+
 # ----------------------
 # GAME
 # ----------------------
