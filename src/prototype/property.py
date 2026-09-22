@@ -20,9 +20,3 @@ def payRent(rent, cash):
 
 def calculateRent(cash):
 	pass
-
-def buyProperty(playerId, position):
-	pass
-
-def mortgage(playerId, position):
-	pass

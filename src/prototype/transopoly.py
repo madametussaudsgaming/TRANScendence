@@ -23,21 +23,6 @@ from prototype.trading import offerPurchase
 def newGame(names):
 	pass
 
-def rollNMove(playerId):
-	pass
-
-def sendToJail():
-	pass
-
-def buildHouse(playerId, position):
-	pass
-
-def endTurn(playerId):
-	pass
-
-def getState(playerId):
-	pass
-
 def main():
 	print("Hello World!")
 

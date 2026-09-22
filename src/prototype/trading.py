@@ -13,8 +13,5 @@
 def offerPurchase():
 	pass
 
-def auction():
-	pass
-
 def transferMoney(player, rent):
 	pass
