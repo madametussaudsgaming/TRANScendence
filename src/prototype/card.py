@@ -11,6 +11,8 @@
 # **************************************************************************** #
 
 import random
+from engine import Game
+from moneyManipulation import moneyManipulate
 
 # ------------------------
 # CARDS
@@ -43,11 +45,11 @@ communityChestCards = [
 def drawChanceCard():
 	random.shuffle(chanceCards)
 	return chanceCards.pop()
-	
+
 def drawCommunityChestCard():
 	random.shuffle(communityChestCards)
 	return communityChestCards.pop()
-	
+
 def applyCardEffects(card, player):
 	if "Collect" in card:
 		amount = int(card.split('$')[1] if '$' in card else 0)
@@ -57,4 +59,10 @@ def applyCardEffects(card, player):
 		player.money -= amount
 	elif "Go to jail" in card:
 		player.inJail = True
-		
+	elif "It's your birthday" in card:
+		giftSum = 0
+		for p in Game.players:
+			if p.playerId != player.playerId:
+				moneyManipulate.painMoney(p.playerId, 10)
+				giftSum += 10
+		moneyManipulate.gainMoney(player.playerId, giftSum)

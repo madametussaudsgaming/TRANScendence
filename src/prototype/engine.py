@@ -50,11 +50,6 @@ class preGame:
 		target = self.getTempPlayer(ID)
 		self.players.remove(target)
 
-
-
-	players.append(createTemp(credentials, username, ID))
-	if (signalPlayerLeave):
-
 	#ONCE REACCHED WE"RE USING WEBSOCKETS, leaveGame and startGame on the website side
 	#we need to create an array of Player(class) by the time preGame ends to give to Game
 
@@ -94,6 +89,12 @@ class Game:
 
 	def endTurn(playerId):
 		pass
+
+	def	getPlayer(self, ID):
+			for p in self.players:
+				if p.playerID == ID:
+					return p
+			print ("[DEBUG] Player Not Found")
 
 	def getState(self, playerId):
 		player = self.players[playerId]
