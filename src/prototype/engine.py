@@ -27,36 +27,69 @@ class Player:
 		self.bankrupt = False
 
 
-class preGame:
+class PreGame:
 	# while in lobby
 	# when receive enter button, take user credentials and username (protect from sql injection), make a temp player, add to an array
 	# when every player currently joined presses 'ready' OR 4 players have been reached, then a countdown of 10 seconds happens then the game starts.
 	#if a player disconnects during this time, then everyone's no longer ready. if somebody clicks the button again (un-ready) everyone is no longer ready
-
-
 	def __init__(self):
 		self.players = []
+		self.readyPlayers = set()
+		self.started = False
 
 	def	getTempPlayer(self, ID):
 		for p in self.players:
 			if p.playerID == ID:
 				return p
 		print ("[DEBUG] Player Not Found")
+		return None
 
 	def tempPlayerJoin(self, ID, username):
+		if self.started:
+			return False
+		if self.getTempPlayer(ID) is not None:
+			return False
 		self.players.append(Player(ID, username))
+		return True
 
 	def tempPlayerLeft(self, ID):
 		target = self.getTempPlayer(ID)
+		if target is None:
+			return False
 		self.players.remove(target)
+		self.readyPlayers.clear()
+		return True
+
+	def setReady(self, ID):
+		player = self.getTempPlayer(ID)
+		if player is None:
+			return False
+		if ID in self.readyPlayers:
+			self.readyPlayers.remove(ID)
+		else:
+			self.readyPlayers.add(ID)
+		return True
+
+	def allPlayerReady(self):
+		if len(self.players) == 0:
+			return False
+		return len(self.readyPlayers) == len(self.players)
+
+	def canStart(self):
+		if len(self.players) < 2 or len(self.players > 4):
+			return False
+		if len(self.players) >= 4:
+			return True
+		return self.allPlayerReady()
+
+	def startGame(self):
+		if not self.canStart():
+			return None
+		self.started = True
+		return self.players
 
 	#ONCE REACCHED WE"RE USING WEBSOCKETS, leaveGame and startGame on the website side
 	#we need to create an array of Player(class) by the time preGame ends to give to Game
-
-
-
-
-
 
 # ----------------------
 # GAME
@@ -91,19 +124,36 @@ class Game:
 		pass
 
 	def gainMoney(self, ID, amount):
-			player = Game.getPlayer(ID)
-			player.money += amount
+		player = Game.getPlayer(ID)
+		if player is None:
+			return False
+		player.money += amount
+		return True
 	
 	#(as in the pain of losing money)
 	def painMoney(self, ID, amount):
 		player = Game.getPlayer(ID)
+		if player is None:
+			return False
 		player.money -= amount
+		return True
+
+	def transferMoney(self, fromID, toID, amount):
+		fromPlayer = self.getPlayer(fromID)
+		toPlayer = self.getPlayer(toID)
+
+		if fromPlayer is None or toPlayer is None:
+			return False
+		fromPlayer.money -= amount
+		toPlayer.money += amount
+		return True
 
 	def	getPlayer(self, ID):
 		for p in self.players:
 			if p.playerID == ID:
 				return p
 		print ("[DEBUG] Player Not Found")
+		return None
 
 	def getState(self, playerId):
 		player = self.getPlayer(playerId)
