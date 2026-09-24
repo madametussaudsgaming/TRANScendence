@@ -20,7 +20,6 @@ def payRent(rent, cash):
 
 def calculateRent(cash):
 	pass
-<<<<<<< HEAD
 
 def buyProperty(playerId, position):
 	pass
@@ -29,5 +28,3 @@ def mortgage(playerId, position):
 	pass
 
 # the variables for property will be mortgageValue, baseRent, baseRent with color set, rent for buildings 1-5, color set value, funValue
-=======
->>>>>>> 70cbc016bc340c55f0f73ad29c3372d35ecb3add

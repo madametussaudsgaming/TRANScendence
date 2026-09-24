@@ -69,35 +69,44 @@ class Game:
 		self.currentTurnIndex = 0
 		self.doubleStreak = 0
 
-	def buyProperty(playerId, position):
+	def buyProperty(self, playerId, position):
 		pass
 
-	def mortgage(playerId, position):
+	def mortgage(self, playerId, position):
 		pass
 
-	def auction():
+	def auction(self):
 		pass
 
-	def rollNMove(playerId):
+	def rollNMove(self, playerId):
 		pass
 
-	def sendToJail():
+	def sendToJail(self):
 		pass
 
-	def buildHouse(playerId, position):
+	def buildHouse(self, playerId, position):
 		pass
 
-	def endTurn(playerId):
+	def endTurn(self, playerId):
 		pass
+
+	def gainMoney(self, ID, amount):
+			player = Game.getPlayer(ID)
+			player.money += amount
+	
+	#(as in the pain of losing money)
+	def painMoney(self, ID, amount):
+		player = Game.getPlayer(ID)
+		player.money -= amount
 
 	def	getPlayer(self, ID):
-			for p in self.players:
-				if p.playerID == ID:
-					return p
-			print ("[DEBUG] Player Not Found")
+		for p in self.players:
+			if p.playerID == ID:
+				return p
+		print ("[DEBUG] Player Not Found")
 
 	def getState(self, playerId):
-		player = self.players[playerId]
+		player = self.getPlayer(playerId)
 		return {
 			"currentTurn": self.currentTurnIndex,
 			"player": {
@@ -108,7 +117,7 @@ class Game:
 				"properties": player.properties,
 				"inJail": player.inJail,
 				"jailTurns": player.jailTurns,
-				"getOutOfJailCaards": player.getOutOfJailCards,
+				"getOutOfJailCards": player.getOutOfJailCards,
 				"bankrupt": player.bankrupt
 			},
 			"players": [
@@ -127,7 +136,7 @@ class Game:
 					"name": tile.name,
 					"owner": tile.owner.playerId if hasattr(tile, "owner") and tile.owner else None,
 					"houses": tile.houses if hasattr(tile, "houses") else 0,
-					"mortgaged": tile.mortgaged if hasattr(tile, "mortgage") else False
+					"mortgage": tile.mortgaged if hasattr(tile, "mortgage") else False
 				}
 				if tile else None
 				for tile in self.board
