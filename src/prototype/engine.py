@@ -328,11 +328,31 @@ class GameServer:
 	def __init__(self):
 		self.games = {}
 
-	def createGame():
-		pass
+	def createGame(self, gameId, players, board):
+		if gameId in self.games:
+			return False
+		self.games[gameId] = Game(board, players)
+		return True
 
-	def getGame():
-		pass
+	def getGame(self, gameId):
+		return self.games.get(gameId)
 
-	def roll():
-		pass
+	def roll(self, gameId, playerId):
+		game = self.games.get(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game."
+			}
+		result = game.rollNMove(playerId)
+		if result is False:
+			return {
+				"success": False,
+				"error": "Unable to roll"
+			}
+		return {
+			"success": True,
+			"result": result,
+			"state": game.getState()
+		}
