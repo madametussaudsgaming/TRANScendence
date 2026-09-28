@@ -323,3 +323,16 @@ class Game:
 				for tile in self.board
 			]
 		}
+
+class GameServer:
+	def __init__(self):
+		self.games = {}
+
+	def createGame():
+		pass
+
+	def getGame():
+		pass
+
+	def roll():
+		pass
