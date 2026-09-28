@@ -10,6 +10,8 @@
 #                                                                              #
 # **************************************************************************** #
 
+import random
+
 # ----------------------
 # PLAYER
 # ----------------------
@@ -103,25 +105,154 @@ class Game:
 		self.doubleStreak = 0
 
 	def buyProperty(self, playerId, position):
-		pass
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		if not hasattr(tile, "price"):
+			return False
+		if tile.owner is not None:
+			return False
+		if player.money < tile.price:
+			return False
+		player.money -= tile.price
+		tile.owner = player
+		player.properties.append(position)
+		return True
 
 	def mortgage(self, playerId, position):
-		pass
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		if not hasattr(tile, "owner"):
+			return False
+		if tile.owner != player:
+			return False
+		if tile.mortgaged:
+			return False
+		if hasattr(tile, "houses") and tile.houses > 0:
+			return False
+		player.money += tile.mortgageValue
+		tile.mortgaged = True
+		return True
 
-	def auction(self):
-		pass
+	def auction(self, position):
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		if not hasattr(tile, "price"):
+			return False
+		if tile.owner is not None:
+			return False
+
+		# TODO -> Build the actual bidding when the website is actually up
+		
+		return True
 
 	def rollNMove(self, playerId):
-		pass
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		currentPlayer = self.players[self.currentTurnIndex]
+		if currentPlayer.playerId != playerId:
+			return False
+		if player.bankrupt:
+			return False
+		if player.inJail:
+			return False
 
-	def sendToJail(self):
-		pass
+		dice1 = random.randint(1, 6)
+		dice2 = random.randint(1, 6)
+		total = dice1 + dice2
+		isDouble = dice1 == dice2
+
+		if isDouble:
+			self.doubleStreak += 1
+		else:
+			self.doubleStreak = 0
+		if self.doubleStreak >= 3:
+			self.doubleStreak = 0
+			self.sendToJail(playerId)
+			return {
+				"dice": [dice1, dice2],
+				"total": total,
+				"doubles": isDouble,
+				"sendToJail": True
+			}
+		oldPosition = player.position
+		player.position += total
+
+		if player.position >= len(self.board):
+			player.position -= len(self.board)
+			player.money += 200
+		tile = self.board[player.position]
+		return {
+			"dice": [dice1, dice2],
+			"total": total,
+			"doubles": isDouble,
+			"oldPosition": oldPosition,
+			"position": player.position,
+			"tile": tile.name if tile else None
+		}
+
+	def sendToJail(self, playerId):
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		player.position = 10
+		player.inJail = True
+		player.jailTurns = 0
+		return True
 
 	def buildHouse(self, playerId, position):
-		pass
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		if not hasattr(tile, "owner"):
+			return False
+		if tile.owner != player:
+			return False
+		if not hasattr(tile, "houses"):
+			return False
+		if tile.houses >= 5:
+			return False
+		if tile.mortgaged:
+			return False
+		if player.money < tile.houseCost:
+			return False
+
+		# TODO -> check whether the player has ALL its respective colored groups
+
+		player.money -= tile.houseCost
+		tile.houses += 1
+		return True
 
 	def endTurn(self, playerId):
-		pass
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		currentPlayer = self.players
+		if currentPlayer.playerId != playerId:
+			return False
+		if self.doubleStreak > 0:
+			self.doubleStreak = 0
+			return True
+		self.currentTurnIndex += 1
+		if self.currentTurnIndex >= len(self.players):
+			self.currentTurnIndex = 0
+		while self.players[self.currentTurnIndex].bankrupt:
+			self.currentTurnIndex += 1
+			if self.currentTurnIndex >= len(self.players):
+				self.currentTurnIndex = 0
+		return True
 
 	def gainMoney(self, ID, amount):
 		player = Game.getPlayer(ID)
