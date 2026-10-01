@@ -20,28 +20,33 @@ class Tile:
 		self.position = position
 
 class PropertyTile(Tile):
-	def __init__(self, name, position, price, group, rentLevels):
+	def __init__(self, name, position, price, group, rentLevels, houseCost, mortgageValue):
 		super().__init__(name, position)
 		self.price = price
 		self.group = group
 		self.rentLevels = rentLevels
+		self.houseCost = houseCost
+		self.mortgageValue = mortgageValue
 		self.owner = None
 		self.houses = 0
 		self.mortgaged = False
 
 class RailroadTile(Tile):
-	def __init__(self, name, position):
+	def __init__(self, name, position, price, mortgageValue):
 		super().__init__(name, position)
-		self.price = 200
+		self.price = price
+		self.mortgageValue = mortgageValue
 		self.owner = None
 		self.mortgaged = False
 
 class UtilityTile(Tile):
-	def __init__(self, name, position):
+	def __init__(self, name, position, price, mortgageValue):
 		super().__init__(name, position)
-		self.price = 150
+		self.price = price
+		self.mortgageValue = mortgageValue
 		self.owner = None
 		self.mortgaged = False
+
 
 class TaxTile(Tile):
 	def __init__(self, name, position, amount):

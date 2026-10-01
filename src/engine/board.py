@@ -12,17 +12,17 @@
 
 import json
 
-from prototype.tile import Tile
-from prototype.tile import PropertyTile
-from prototype.tile import RailroadTile
-from prototype.tile import UtilityTile
-from prototype.tile import TaxTile
-from prototype.tile import ChanceTile
-from prototype.tile import CommunityChestTile
-from prototype.tile import GoTile
-from prototype.tile import JailTile
-from prototype.tile import FreeParkingTile
-from prototype.tile import GoToJailTime
+from tile import Tile
+from tile import PropertyTile
+from tile import RailroadTile
+from tile import UtilityTile
+from tile import TaxTile
+from tile import ChanceTile
+from tile import CommunityChestTile
+from tile import GoTile
+from tile import JailTile
+from tile import FreeParkingTile
+from tile import GoToJailTime
 
 # ------------------------
 # BOARD LOGIC
@@ -45,7 +45,7 @@ def loadBoard(path):
 	with open(path) as f:
 		data = json.load(f)
 
-	board = [None] * data["boardSize"]
+	board = [None] * data["board_size"]
 	for tileData in data["tiles"]:
 		tileType = tileData.pop("type")
 		position = tileData["position"]

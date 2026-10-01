@@ -281,7 +281,7 @@ class Game:
 
 	def	getPlayer(self, ID):
 		for p in self.players:
-			if p.playerID == ID:
+			if p.playerId == ID:
 				return p
 		print ("[DEBUG] Player Not Found")
 		return None
@@ -289,7 +289,7 @@ class Game:
 	def getState(self, playerId):
 		player = self.getPlayer(playerId)
 		return {
-			"currentTurn": self.currentTurnIndex,
+			"currentTurn": self.players[self.currentTurnIndex].playerId,
 			"player": {
 				"id": player.playerId,
 				"name": player.name,
@@ -317,7 +317,7 @@ class Game:
 					"name": tile.name,
 					"owner": tile.owner.playerId if hasattr(tile, "owner") and tile.owner else None,
 					"houses": tile.houses if hasattr(tile, "houses") else 0,
-					"mortgage": tile.mortgaged if hasattr(tile, "mortgage") else False
+					"mortgaged": tile.mortgaged if hasattr(tile, "mortgage") else False
 				}
 				if tile else None
 				for tile in self.board
@@ -354,5 +354,5 @@ class GameServer:
 		return {
 			"success": True,
 			"result": result,
-			"state": game.getState()
+			"state": game.getState(playerId)
 		}
