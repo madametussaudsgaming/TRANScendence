@@ -10,6 +10,8 @@
 #                                                                              #
 # **************************************************************************** #
 
+from engine import Game
+
 # -------------------------------------------------------------
 # TILES
 # -------------------------------------------------------------
@@ -74,5 +76,5 @@ class FreeParkingTile(Tile):
 	pass
 
 class GoToJailTime(Tile):
-	# To be implemented
+	# To be implemented 
 	pass

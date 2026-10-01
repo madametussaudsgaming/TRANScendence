@@ -12,7 +12,7 @@
 
 import random
 from engine import Game
-from moneyManipulation import moneyManipulate
+# from engine import moneyManipulate
 
 # ------------------------
 # CARDS
@@ -63,6 +63,6 @@ def applyCardEffects(card, player):
 		giftSum = 0
 		for p in Game.players:
 			if p.playerId != player.playerId:
-				moneyManipulate.painMoney(p.playerId, 10)
+				Game.painMoney(p.playerId, 10)
 				giftSum += 10
-		moneyManipulate.gainMoney(player.playerId, giftSum)
+		Game.gainMoney(player.playerId, giftSum)
