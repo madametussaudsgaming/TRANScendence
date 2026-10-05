@@ -20,11 +20,11 @@ class GameSessionsController < ApplicationController
 
 	def create
 		game = GameSession.create!(hostId: params[:hostId], status: "waiting")
+		game.gameSessionPlayers.create!(userId: params[:hostId], player_id: 1)
 		render json: {
 			success: true,
 			gameId: game.id
 		}
-		
 	end
 
 	def join
