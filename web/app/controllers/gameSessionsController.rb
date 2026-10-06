@@ -1,4 +1,5 @@
 class GameSessionsController < ApplicationController
+	before_action: :require_login
 	def index
 		render json: GameSession.all
 	end
@@ -9,18 +10,24 @@ class GameSessionsController < ApplicationController
 		render json: {
 			id: game.id,
 			status: game.status,
-			pythonGameId: pythonGameId,
-			players: game.gameSessionPlayers.map do |player| {
-				userId: player.userId
-				playerId: player.playerId
+			pythonGameId: game.python_game_id,
+			players: game.game_session_players.map do |player| {
+				userId: player.user_id
+				playerId: player.player_id
 			}
 			end
 		}
 	end
 
 	def create
-		game = GameSession.create!(hostId: params[:hostId], status: "waiting")
-		game.gameSessionPlayers.create!(userId: params[:hostId], player_id: 1)
+		game = GameSession.create!(
+			host_id: current_user.id,
+			status: "waiting"
+		)
+		game.game_session_players.create!(
+			user_id: current_user.id,
+			player_id: 1
+		)
 		render json: {
 			success: true,
 			gameId: game.id
@@ -33,34 +40,37 @@ class GameSessionsController < ApplicationController
 			return render json: {
 				success: false,
 				error: "Game has already started"
-			}, status: :unprocessableEntity
+			}, status: :unprocessable_entity
 		end
 
 		if game.full?
 			return render json: {
 				success: false,
 				error: "Game is full"
-			}, status: :unprocessableEntity
+			}, status: :unprocessable_entity
 		end
 
-		if game.players.exists?(params[:userId])
+		if game.players.exists?(current_user.id)
 			return render json: {
 				success: false,
 				error: "Already in game"
-			}, status: :unprocessableEntity
+			}, status: :unprocessable_entity
 		end
 
-		nextPlayerId = game.gameSessionPlayers.maximum(:playerId).to_i + 1
-		player = game.gameSessionPlayers.create!(userId: params[:userId], playerId: nextPlayerId)
+		next_player_id = game.game_session_players.maximum(:playerId).to_i + 1
+		player = game.game_session_players.create!(
+			userId: current_user.id,
+			playerId: next_player_id
+		)
 		render json: {
 			success: true,
-			playerId: player.playerId
+			playerId: player.player_id
 		}
 	end
 
 	def leave
 		game = GameSession.find(params[:id])
-		player = game.gameSessionPlayers.find_by(userId: params[:userId])
+		player = game.game_session_players.find_by(user_id: current_user.id)
 		
 		unless player
 			return render json: {
@@ -69,8 +79,10 @@ class GameSessionsController < ApplicationController
 			}, status: :not_found
 		end
 
-		player.destory!
-		render json: {success: true}
+		player.destroy!
+		render json: {
+			success: true
+		}
 	end
 
 	def start
@@ -79,10 +91,10 @@ class GameSessionsController < ApplicationController
 			return render json: {
 				success: false,
 				error: "Game cannot be started"
-			}, status: :unprocessableEntity
+			}, status: :unprocessable_entity
 		end
 
-		players = game.gameSessionPlayers.map do |player| {
+		players = game.game_session_players.map do |player| {
 			playerId: player.player_id,
 			name: player.user.email
 		}
@@ -111,9 +123,17 @@ class GameSessionsController < ApplicationController
 
 	def roll
     	game = GameSession.find(params[:id])
-    	result = PythonGameClient.new.roll(game.python_game_id, params[:player_id])
+		player = game.game_session_players.find_by(userId: current_user.id)
+		unless player
+			return render json: {
+				success: false,
+				error: "Player not found"
+			}, status: :forbidden
+		end
+    	result = PythonGameClient.new.roll(
+			game.python_game_id,
+			player.player_id
+		)
 		render json: result
 	end
 end
-
-	
