@@ -7,6 +7,7 @@ class GameSessionsController < ApplicationController
 	def show
 		game = GameSession.find(params[:id])
 
+		return unless require_player(game)
 		render json: {
 			id: game.id,
 			status: game.status,
@@ -87,6 +88,8 @@ class GameSessionsController < ApplicationController
 
 	def start
 		game = GameSession.find(params[:id])
+		
+		return unless require_host(game)
 		unless game.waiting?
 			return render json: {
 				success: false,
@@ -123,6 +126,8 @@ class GameSessionsController < ApplicationController
 
 	def roll
     	game = GameSession.find(params[:id])
+
+    	return unless require_player(game)
 		player = game.game_session_players.find_by(userId: current_user.id)
 		unless player
 			return render json: {
