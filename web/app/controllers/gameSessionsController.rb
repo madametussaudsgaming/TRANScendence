@@ -71,15 +71,24 @@ class GameSessionsController < ApplicationController
 
 	def leave
 		game = GameSession.find(params[:id])
-		player = game.game_session_players.find_by(user_id: current_user.id)
-		
-		unless player
+
+		return unless require_player(game)
+
+		unless game.waiting?
 			return render json: {
 				success: false,
-				error: "Player is not in this game"
-			}, status: :not_found
+				error: "Players cannot leave after the game starts"
+			}, status: :unprocessable_entity
 		end
 
+		if game.host_id == current_user.id
+			return render json: {
+				success: false,
+				error: "The host cannot leave. Delete the lobby or transfer first"
+			}, status: :unprocessable_entity
+		end	
+		
+		player = game.game_session_players.find_by(user_id: current_user.id)
 		player.destroy!
 		render json: {
 			success: true

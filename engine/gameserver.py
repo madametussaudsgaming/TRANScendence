@@ -39,3 +39,7 @@ def createGame(request: CreateGameRequest):
 def roll(gameId: str, request: RollRequest):
 	result = server.roll(gameId, request.playerId)
 	return result
+
+@app.get("/games/{gameId}/state/{playerId}")
+def getGameState(gameId: str, playerId: int):
+    return server.getState(gameId, playerId)
