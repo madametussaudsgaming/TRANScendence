@@ -1,12 +1,12 @@
 # **************************************************************************** #
 #                                                                              #
 #                                                         :::      ::::::::    #
-#    player.py                                          :+:      :+:    :+:    #
+#    engine.py                                          :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: alechin <alechin@student.42kl.edu.my>      +#+  +:+       +#+         #
+#    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/09/14 14:28:44 by alechin          ###   ########.fr        #
+#    Updated: 2026/10/13 15:07:22 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -41,7 +41,7 @@ class PreGame:
 
 	def	getTempPlayer(self, ID):
 		for p in self.players:
-			if p.playerID == ID:
+			if p.playerId == ID:
 				return p
 		print ("[DEBUG] Player Not Found")
 		return None
@@ -80,7 +80,7 @@ class PreGame:
 	def canStart(self):
 		if len(self.players) < 2 or len(self.players > 4):
 			return False
-		if len(self.players) >= 4:
+		if len(self.players) >= 2:
 			return True
 		return self.allPlayerReady()
 
@@ -151,7 +151,7 @@ class Game:
 			return False
 
 		# TODO -> Build the actual bidding when the website is actually up
-		
+
 		return True
 
 	def rollNMove(self, playerId):
@@ -239,7 +239,7 @@ class Game:
 		player = self.getPlayer(playerId)
 		if player is None:
 			return False
-		currentPlayer = self.players
+		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
 		if self.doubleStreak > 0:
@@ -255,15 +255,15 @@ class Game:
 		return True
 
 	def gainMoney(self, ID, amount):
-		player = Game.getPlayer(ID)
+		player = self.getPlayer(ID)
 		if player is None:
 			return False
 		player.money += amount
 		return True
-	
+
 	#(as in the pain of losing money)
 	def painMoney(self, ID, amount):
-		player = Game.getPlayer(ID)
+		player = self.getPlayer(ID)
 		if player is None:
 			return False
 		player.money -= amount

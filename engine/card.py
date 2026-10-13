@@ -52,10 +52,10 @@ def drawCommunityChestCard():
 
 def applyCardEffects(card, player):
 	if "Collect" in card:
-		amount = int(card.split('$')[1] if '$' in card else 0)
+		amount = int(card.split('M')[1] if 'M' in card else 0)
 		player.money += amount
 	elif "Pay" in card:
-		amount = int(card.split('$')[1] if '$' in card else 0)
+		amount = int(card.split('M')[1] if 'M' in card else 0)
 		player.money -= amount
 	elif "Go to jail" in card:
 		player.inJail = True
@@ -63,6 +63,6 @@ def applyCardEffects(card, player):
 		giftSum = 0
 		for p in Game.players:
 			if p.playerId != player.playerId:
-				Game.painMoney(p.playerId, 10)
+				player.painMoney(p.playerId, 10)
 				giftSum += 10
-		Game.gainMoney(player.playerId, giftSum)
+		player.gainMoney(player.playerId, giftSum)
