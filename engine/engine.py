@@ -328,6 +328,26 @@ class GameServer:
 	def __init__(self):
 		self.games = {}
 
+	def getState(self, gameId, playerId):
+		game = self.getGame(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "Game not found"
+			}
+
+		state = game.getState(playerId)
+		if state is None:
+			return {
+				"success": False,
+				"error": "Player not found"
+			}
+		return {
+			"success": True,
+			"state": state
+		}
+
 	def createGame(self, gameId, players, board):
 		if gameId in self.games:
 			return False
