@@ -51,8 +51,17 @@ def drawCommunityChestCard():
 	return communityChestCards.pop()
 
 def applyCardEffects(card, player, Game):
-	if "Collect" in card:
-		amount = int(card.split('M')[1] if 'M' in card else 0)
+	if "It's your birthday" in card:
+		giftSum = 0
+		for p in Game.players:
+			if p.playerId != player.playerId:
+				Game.painMoney(p.playerId, 10)
+				giftSum += 10
+		Game.gainMoney(player.playerId, giftSum)
+	elif "Collect" in card:
+		amount = (card.split('M')[1] if 'M' in card else 0)
+		if (len(amount) > 1):
+			int(amount[:-1])
 		player.money += amount
 	elif "Pay" in card:
 		amount = int(card.split('M')[1] if 'M' in card else 0)
@@ -61,10 +70,5 @@ def applyCardEffects(card, player, Game):
 		Game.sendToJail(player, player.Id)
 	elif "Get out of jail free" in card:
 		player.getOutOfJailCards += 1
-	elif "It's your birthday" in card:
-		giftSum = 0
-		for p in Game.players:
-			if p.playerId != player.playerId:
-				Game.painMoney(p.playerId, 10)
-				giftSum += 10
-		Game.gainMoney(player.playerId, giftSum)
+	elif "You inherit M100" in card:
+		Game.gainMoney(player.playerId, 100)
