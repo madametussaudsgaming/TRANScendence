@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/14 15:59:04 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/14 16:31:50 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -15,6 +15,7 @@ JAIL_POSITION = 10
 JAIL_FINE = 50
 MAX_JAIL_TURNS = 3
 MAX_DOUBLES = 3
+PASS_GO_YEEHAW = 200
 
 
 # ----------------------
@@ -108,7 +109,7 @@ class Game:
 		self.players = players
 		self.currentTurnIndex = 0
 		self.doubleStreak = 0
-		self.hasRolled = 0
+		self.hasRolled = False
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -160,6 +161,23 @@ class Game:
 
 		return True
 
+	def movePlayer(self, player, steps):
+		oldPosition = player.position
+		newPosition = (player.position + steps) % len(self.board)
+		passedGo = False
+		if (steps > 0 and newPosition < oldPosition):
+			passedGo = True
+		if passedGo == True:
+			self.gainMoney(player.playerId, PASS_GO_YEEHAW)
+		player.position = newPosition
+		tile = self.board[newPosition]
+		return {
+			"oldPosition": oldPosition,
+			"position": newPosition,
+			"passedGo": passedGo,
+			"tile": tile.name if tile else None
+		}
+
 	def rollNMove(self, playerId):
 		if self.hasRolled == True:
 			return False
@@ -176,30 +194,40 @@ class Game:
 			isDouble = dice1 == dice2
 			if isDouble:
 				self.releaseFromJail(currentPlayer)
+				move = self.movePlayer(currentPlayer, total)
 				self.hasRolled = True
 				return {
 							"dice": [dice1, dice2],
 							"total": total,
 							"doubles": isDouble,
-							"position": currentPlayer.position,
-							"stillInJail": False
+							"stillInJail": False,
+							**move
 						}
 			else:
 				currentPlayer.jailTurns += 1
 				if currentPlayer.jailTurns >= MAX_JAIL_TURNS:
 					self.painMoney(playerId, JAIL_FINE)
+					# TODO: bankruptcy if money < 0.
 					self.releaseFromJail(currentPlayer)
 					self.hasRolled = True
+					move = self.movePlayer(currentPlayer, total)
+					return 	{
+								"dice": [dice1, dice2],
+								"total": total,
+								"doubles": isDouble,
+								"stillInJail": False,
+								**move
+							}
 				else:
-					currentPlayer.inJail = True
 					self.hasRolled = True
-				return {
-							"dice": [dice1, dice2],
-							"total": total,
-							"doubles": isDouble,
-							"position": currentPlayer.position,
-							"stillInJail": True
-						}
+					move = self.movePlayer(currentPlayer, 0)
+					return 	{
+								"dice": [dice1, dice2],
+								"total": total,
+								"doubles": isDouble,
+								"stillInJail": True,
+								**move
+							}
 
 		dice1 = random.randint(1, 6)
 		dice2 = random.randint(1, 6)
@@ -220,22 +248,14 @@ class Game:
 				"doubles": isDouble,
 				"sendToJail": True
 			}
-		oldPosition = currentPlayer.position
-		currentPlayer.position += total
-
-		if currentPlayer.position >= len(self.board):
-			currentPlayer.position -= len(self.board)
-			currentPlayer.money += 200
-		tile = self.board[currentPlayer.position]
+		move = self.movePlayer(currentPlayer, total)
 		if isDouble != True:
 			self.hasRolled = True
 		return {
 			"dice": [dice1, dice2],
 			"total": total,
 			"doubles": isDouble,
-			"oldPosition": oldPosition,
-			"position": currentPlayer.position,
-			"tile": tile.name if tile else None
+			**move
 		}
 
 	def sendToJail(self, playerId):
