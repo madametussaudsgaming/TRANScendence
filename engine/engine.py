@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/13 22:31:12 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/14 15:59:04 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -14,6 +14,7 @@ import random
 JAIL_POSITION = 10
 JAIL_FINE = 50
 MAX_JAIL_TURNS = 3
+MAX_DOUBLES = 3
 
 
 # ----------------------
@@ -160,45 +161,45 @@ class Game:
 		return True
 
 	def rollNMove(self, playerId):
-		player = self.getPlayer(playerId)
-		if player is None:
-			return False
 		if self.hasRolled == True:
 			return False
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
-		if player.bankrupt:
+		if currentPlayer.bankrupt:
 			return False
-		if player.inJail:
-			prompt = 0
 
-			#prompt the current player if they want to pay the fine or roll doubles
-			if (prompt == 'pay'):
-				self.painMoney(playerId, JAIL_FINE)
+		if currentPlayer.inJail:
+			dice1 = random.randint(1, 6)
+			dice2 = random.randint(1, 6)
+			total = dice1 + dice2
+			isDouble = dice1 == dice2
+			if isDouble:
+				self.releaseFromJail(currentPlayer)
+				self.hasRolled = True
+				return {
+							"dice": [dice1, dice2],
+							"total": total,
+							"doubles": isDouble,
+							"position": currentPlayer.position,
+							"stillInJail": False
+						}
 			else:
-				dice1 = random.randint(1, 6)
-				dice2 = random.randint(1, 6)
-				total = dice1 + dice2
-				isDouble = dice1 == dice2
-				if isDouble:
-					player.jailTurns = 0
-					player.inJail = False
+				currentPlayer.jailTurns += 1
+				if currentPlayer.jailTurns >= MAX_JAIL_TURNS:
+					self.painMoney(playerId, JAIL_FINE)
+					self.releaseFromJail(currentPlayer)
+					self.hasRolled = True
 				else:
-					if player.jailTurns > 2:
-						self.painMoney(playerId, JAIL_FINE)
-						player.inJail = False
-						player.jailTurns = 0
-					player.jailTurns += 1
-					player.inJail = True
-					return {
-								"dice": [dice1, dice2],
-								"total": total,
-								"doubles": isDouble,
-								"oldPosition": oldPosition,
-								"position": player.position,
-								"tile": tile.name if tile else None
-							}
+					currentPlayer.inJail = True
+					self.hasRolled = True
+				return {
+							"dice": [dice1, dice2],
+							"total": total,
+							"doubles": isDouble,
+							"position": currentPlayer.position,
+							"stillInJail": True
+						}
 
 		dice1 = random.randint(1, 6)
 		dice2 = random.randint(1, 6)
@@ -209,30 +210,31 @@ class Game:
 			self.doubleStreak += 1
 		else:
 			self.doubleStreak = 0
-		if self.doubleStreak >= MAX_JAIL_TURNS:
+		if self.doubleStreak >= MAX_DOUBLES:
 			self.doubleStreak = 0
 			self.sendToJail(playerId)
+			self.hasRolled = True
 			return {
 				"dice": [dice1, dice2],
 				"total": total,
 				"doubles": isDouble,
 				"sendToJail": True
 			}
-		oldPosition = player.position
-		player.position += total
+		oldPosition = currentPlayer.position
+		currentPlayer.position += total
 
-		if player.position >= len(self.board):
-			player.position -= len(self.board)
-			player.money += 200
-		tile = self.board[player.position]
+		if currentPlayer.position >= len(self.board):
+			currentPlayer.position -= len(self.board)
+			currentPlayer.money += 200
+		tile = self.board[currentPlayer.position]
 		if isDouble != True:
-			self.hasRolled = False
+			self.hasRolled = True
 		return {
 			"dice": [dice1, dice2],
 			"total": total,
 			"doubles": isDouble,
 			"oldPosition": oldPosition,
-			"position": player.position,
+			"position": currentPlayer.position,
 			"tile": tile.name if tile else None
 		}
 
@@ -244,6 +246,42 @@ class Game:
 		player.inJail = True
 		player.jailTurns = 0
 		self.doubleStreak = 0
+		return True
+
+	# shared checks for leaving jail before rolling: their turn, in jail, hasn't rolled yet
+	def getJailedCurrentPlayer(self, playerId):
+		if self.hasRolled:
+			return None
+		currentPlayer = self.players[self.currentTurnIndex]
+		if currentPlayer.playerId != playerId:
+			return None
+		if currentPlayer.bankrupt or not currentPlayer.inJail:
+			return None
+		return currentPlayer
+
+	def releaseFromJail(self, player):
+		player.inJail = False
+		player.jailTurns = 0
+
+	# player still rolls normally afterwards, so hasRolled stays False
+	def payJailFine(self, playerId):
+		player = self.getJailedCurrentPlayer(playerId)
+		if player is None:
+			return False
+		if player.money < JAIL_FINE:
+			return False
+		self.painMoney(playerId, JAIL_FINE)
+		self.releaseFromJail(player)
+		return True
+
+	def useJailCard(self, playerId):
+		player = self.getJailedCurrentPlayer(playerId)
+		if player is None:
+			return False
+		if player.getOutOfJailCards <= 0:
+			return False
+		player.getOutOfJailCards -= 1
+		self.releaseFromJail(player)
 		return True
 
 	def buildHouse(self, playerId, position):
@@ -273,15 +311,11 @@ class Game:
 		return True
 
 	def endTurn(self, playerId):
-		player = self.getPlayer(playerId)
-		if player is None:
+		if self.hasRolled != True:
 			return False
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
-		if self.doubleStreak > 0:
-			self.doubleStreak = 0
-			return True
 		self.currentTurnIndex += 1
 		if self.currentTurnIndex >= len(self.players):
 			self.currentTurnIndex = 0
@@ -289,7 +323,7 @@ class Game:
 			self.currentTurnIndex += 1
 			if self.currentTurnIndex >= len(self.players):
 				self.currentTurnIndex = 0
-		self.hasRolled = 0
+		self.hasRolled = False
 		return True
 
 	def gainMoney(self, ID, amount):
@@ -412,5 +446,41 @@ class GameServer:
 		return {
 			"success": True,
 			"result": result,
+			"state": game.getState(playerId)
+		}
+
+	def payJailFine(self, gameId, playerId):
+		game = self.games.get(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game."
+			}
+		if not game.payJailFine(playerId):
+			return {
+				"success": False,
+				"error": "Unable to pay jail fine"
+			}
+		return {
+			"success": True,
+			"state": game.getState(playerId)
+		}
+
+	def useJailCard(self, gameId, playerId):
+		game = self.games.get(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game."
+			}
+		if not game.useJailCard(playerId):
+			return {
+				"success": False,
+				"error": "Unable to use get out of jail card"
+			}
+		return {
+			"success": True,
 			"state": game.getState(playerId)
 		}

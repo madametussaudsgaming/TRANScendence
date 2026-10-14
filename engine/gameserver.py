@@ -40,6 +40,14 @@ def roll(gameId: str, request: RollRequest):
 	result = server.roll(gameId, request.playerId)
 	return result
 
+@app.post("/games/{gameId}/jail/pay")
+def payJailFine(gameId: str, request: RollRequest):
+	return server.payJailFine(gameId, request.playerId)
+
+@app.post("/games/{gameId}/jail/card")
+def useJailCard(gameId: str, request: RollRequest):
+	return server.useJailCard(gameId, request.playerId)
+
 @app.get("/games/{gameId}/state/{playerId}")
 def getGameState(gameId: str, playerId: int):
     return server.getState(gameId, playerId)
