@@ -76,5 +76,4 @@ class FreeParkingTile(Tile):
 	pass
 
 class GoToJailTime(Tile):
-	# To be implemented 
 	pass

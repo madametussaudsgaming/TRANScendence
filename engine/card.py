@@ -50,7 +50,7 @@ def drawCommunityChestCard():
 	random.shuffle(communityChestCards)
 	return communityChestCards.pop()
 
-def applyCardEffects(card, player):
+def applyCardEffects(card, player, Game):
 	if "Collect" in card:
 		amount = int(card.split('M')[1] if 'M' in card else 0)
 		player.money += amount
@@ -58,11 +58,13 @@ def applyCardEffects(card, player):
 		amount = int(card.split('M')[1] if 'M' in card else 0)
 		player.money -= amount
 	elif "Go to jail" in card:
-		player.inJail = True
+		Game.sendToJail(player, player.Id)
+	elif "Get out of jail free" in card:
+		player.getOutOfJailCards += 1
 	elif "It's your birthday" in card:
 		giftSum = 0
 		for p in Game.players:
 			if p.playerId != player.playerId:
-				player.painMoney(p.playerId, 10)
+				Game.painMoney(p.playerId, 10)
 				giftSum += 10
-		player.gainMoney(player.playerId, giftSum)
+		Game.gainMoney(player.playerId, giftSum)

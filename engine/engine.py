@@ -6,11 +6,15 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/13 15:07:22 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/13 22:31:12 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 import random
+JAIL_POSITION = 10
+JAIL_FINE = 50
+MAX_JAIL_TURNS = 3
+
 
 # ----------------------
 # PLAYER
@@ -103,6 +107,7 @@ class Game:
 		self.players = players
 		self.currentTurnIndex = 0
 		self.doubleStreak = 0
+		self.hasRolled = 0
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -158,13 +163,42 @@ class Game:
 		player = self.getPlayer(playerId)
 		if player is None:
 			return False
+		if self.hasRolled == True:
+			return False
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
 		if player.bankrupt:
 			return False
 		if player.inJail:
-			return False
+			prompt = 0
+
+			#prompt the current player if they want to pay the fine or roll doubles
+			if (prompt == 'pay'):
+				self.painMoney(playerId, JAIL_FINE)
+			else:
+				dice1 = random.randint(1, 6)
+				dice2 = random.randint(1, 6)
+				total = dice1 + dice2
+				isDouble = dice1 == dice2
+				if isDouble:
+					player.jailTurns = 0
+					player.inJail = False
+				else:
+					if player.jailTurns > 2:
+						self.painMoney(playerId, JAIL_FINE)
+						player.inJail = False
+						player.jailTurns = 0
+					player.jailTurns += 1
+					player.inJail = True
+					return {
+								"dice": [dice1, dice2],
+								"total": total,
+								"doubles": isDouble,
+								"oldPosition": oldPosition,
+								"position": player.position,
+								"tile": tile.name if tile else None
+							}
 
 		dice1 = random.randint(1, 6)
 		dice2 = random.randint(1, 6)
@@ -175,7 +209,7 @@ class Game:
 			self.doubleStreak += 1
 		else:
 			self.doubleStreak = 0
-		if self.doubleStreak >= 3:
+		if self.doubleStreak >= MAX_JAIL_TURNS:
 			self.doubleStreak = 0
 			self.sendToJail(playerId)
 			return {
@@ -191,6 +225,8 @@ class Game:
 			player.position -= len(self.board)
 			player.money += 200
 		tile = self.board[player.position]
+		if isDouble != True:
+			self.hasRolled = False
 		return {
 			"dice": [dice1, dice2],
 			"total": total,
@@ -204,9 +240,10 @@ class Game:
 		player = self.getPlayer(playerId)
 		if player is None:
 			return False
-		player.position = 10
+		player.position = JAIL_POSITION
 		player.inJail = True
 		player.jailTurns = 0
+		self.doubleStreak = 0
 		return True
 
 	def buildHouse(self, playerId, position):
@@ -252,6 +289,7 @@ class Game:
 			self.currentTurnIndex += 1
 			if self.currentTurnIndex >= len(self.players):
 				self.currentTurnIndex = 0
+		self.hasRolled = 0
 		return True
 
 	def gainMoney(self, ID, amount):
