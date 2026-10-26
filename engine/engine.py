@@ -11,6 +11,20 @@
 # **************************************************************************** #
 
 import random
+
+from tile import (
+	PropertyTile,
+	RailroadTile,
+	UtilityTile,
+	TaxTile,
+	ChanceTile,
+	CommunityChestTile,
+	GoTile,
+	JailTile,
+	FreeParkingTile,
+	GoToJailTime,
+)
+
 JAIL_POSITION = 10
 JAIL_FINE = 50
 MAX_JAIL_TURNS = 3
@@ -110,6 +124,7 @@ class Game:
 		self.currentTurnIndex = 0
 		self.doubleStreak = 0
 		self.hasRolled = False
+		self.pendingAction = None
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -127,6 +142,18 @@ class Game:
 		player.money -= tile.price
 		tile.owner = player
 		player.properties.append(position)
+		self.pendingAction = None
+		return True
+
+	def declinePurchase(self, playerId):
+		action = self.pendingAction
+		if action is None:
+			return False
+		if action["type"] != "purchase":
+			return False
+		if action["playerId"] != playerId:
+			return False
+		self.pendingAction = None
 		return True
 
 	def mortgage(self, playerId, position):
@@ -178,8 +205,124 @@ class Game:
 			"tile": tile.name if tile else None
 		}
 
+	def calculateRent(self, tile, diceTotal=None):
+		if tile.owner is None or tile.mortgaged:
+			return 0
+		if isinstance(tile, PropertyTile):
+			rentIndex = min(tile.houses, len(tile.rentLevels) - 1)
+			rent = tile.rentLevels[rentIndex]
+
+			if tile.houses == 0:
+				groupProperties = [
+					t for t in self.board
+					if isinstance(t, PropertyTile)
+					and t.group == tile.group
+				]
+				if groupProperties and all(t.owner == tile.owner for t in groupProperties):
+					rent *= 2
+			return rent
+		elif isinstance(tile, RailroadTile):
+			ownerRailroads = sum(
+				1 for t in self.board
+				if isinstance(t, RailroadTile)
+				and t.owner == tile.owner
+			)
+			return 25 * (2 ** (ownerRailroads - 1))
+		elif isinstance(tile, UtilityTile):
+			ownedUtilites = sum(
+				1 for t in self.board
+				if isinstance(t, UtilityTile)
+				and t.owner == tile.owner
+			)
+			if diceTotal is None:
+				return 0
+			multiplier = 10 if ownedUtilites >= 2 else 4
+			return diceTotal * multiplier
+		return 0
+
+	def resolveTile(self, playerId, diceTotal=None):
+		player = self.getPlayer(playerId)
+
+		if player is None:
+			return {"type": "error", "message": "Player not found"}
+		tile = self.board[player.position]
+		if tile is None:
+			return {"type": "none", "message": "Empty board space"}
+		if isinstance(tile, GoTile):
+			return {"type": "go", "message": "Landed on GO"}
+		if isinstance(tile, (PropertyTile, RailroadTile, UtilityTile)):
+			if tile.owner is None:
+				self.pendingAction = {
+					"type": "purchase",
+					"playerId": playerId,
+					"position": player.position
+				}
+				return {
+					"type": "purchase",
+					"position": player.position,
+					"name": tile.name,
+					"price": tile.price
+				}
+			if tile.owner == player:
+				return {
+					"type": "owned",
+					"name": tile.name,
+					"message": "Landed on your own property"
+				}
+			if tile.mortgaged:
+				return {
+					"type": "mortgaged",
+					"name": tile.name,
+					"message": "No rent is due on this mortgaged property"
+				}
+			rent = self.calculateRent(tile, diceTotal)
+			if player.money < rent:
+				return {
+					"type": "rent_due",
+					"name": tile.name,
+					"ownerId": tile.owner.playerId,
+					"rent": rent,
+					"canPay": False
+				}
+			self.transferMoney(playerId, tile.owner.playerId, rent)
+			return {
+				"type": "rent_paid",
+				"name": tile.name,
+				"ownerId": tile.owner.playerId,
+				"rent": rent
+			}
+		if isInstance(tile, TaxTile):
+			if player.money < tile.amount:
+				return {
+					"type": "tax_due",
+					"amount": tile.amount,
+					"canPay": False,
+				}
+			self.painMoney(playerId, tile.amount)
+			return {
+				"type": "tax_paid",
+				"amount": tile.amount
+			}
+		if isInstance(tile, GoToJailTime):
+			self.sendToJail(playerId)
+			return {
+				"type": "sendToJail",
+				"position": player.position
+			}
+		if isInstance(tile, JailTile):
+			return {"type": "jail_visit"}
+		if isInstance(tile, ChanceTile):
+			return {"type": "chance"}
+		if isInstance(tile, CommunityChestTile):
+			return {"type": "community_chance"}
+		if isInstance(tile, FreeParkingTile):
+			return {"type": "free_parking"}
+		return {"type": "none"}
+
 	def rollNMove(self, playerId):
 		if self.hasRolled == True:
+			return False
+		if self.pendingAction is not None:
 			return False
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
@@ -220,13 +363,16 @@ class Game:
 							}
 				else:
 					self.hasRolled = True
-					move = self.movePlayer(currentPlayer, 0)
+					move = self.movePlayer(currentPlayer, total)
+					if not isDouble:
+						self.hasRolled = True
+					effect = self.resolveTile(playerId, tile)
 					return 	{
 								"dice": [dice1, dice2],
 								"total": total,
 								"doubles": isDouble,
-								"stillInJail": True,
-								**move
+								**move,
+								"effect": effect
 							}
 
 		dice1 = random.randint(1, 6)

@@ -10,8 +10,6 @@
 #                                                                              #
 # **************************************************************************** #
 
-from engine import Game
-
 # -------------------------------------------------------------
 # TILES
 # -------------------------------------------------------------
@@ -56,24 +54,31 @@ class TaxTile(Tile):
 		self.amount = amount
 
 class ChanceTile(Tile):
-	# To be implemented
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
 
 class CommunityChestTile(Tile):
-	# To be implemented
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
 
 class GoTile(Tile):
-	# To be implemented
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
 
 class JailTile(Tile):
-	# To be implemented
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
 
 class FreeParkingTile(Tile):
-	# To be implemented
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
 
 class GoToJailTime(Tile):
+	def __init__(self, name, position):
+		super().__init__(name, position)
 	pass
