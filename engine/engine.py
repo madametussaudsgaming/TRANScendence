@@ -291,7 +291,7 @@ class Game:
 				"ownerId": tile.owner.playerId,
 				"rent": rent
 			}
-		if isInstance(tile, TaxTile):
+		if isinstance(tile, TaxTile):
 			if player.money < tile.amount:
 				return {
 					"type": "tax_due",
@@ -303,19 +303,19 @@ class Game:
 				"type": "tax_paid",
 				"amount": tile.amount
 			}
-		if isInstance(tile, GoToJailTime):
+		if isinstance(tile, GoToJailTime):
 			self.sendToJail(playerId)
 			return {
 				"type": "sendToJail",
 				"position": player.position
 			}
-		if isInstance(tile, JailTile):
+		if isinstance(tile, JailTile):
 			return {"type": "jail_visit"}
-		if isInstance(tile, ChanceTile):
+		if isinstance(tile, ChanceTile):
 			return {"type": "chance"}
-		if isInstance(tile, CommunityChestTile):
+		if isinstance(tile, CommunityChestTile):
 			return {"type": "community_chance"}
-		if isInstance(tile, FreeParkingTile):
+		if isinstance(tile, FreeParkingTile):
 			return {"type": "free_parking"}
 		return {"type": "none"}
 
