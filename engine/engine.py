@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/14 16:31:50 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/30 18:33:17 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -69,6 +69,8 @@ class PreGame:
 	def tempPlayerJoin(self, ID, username):
 		if self.started:
 			return False
+		if len(self.players) >= 4:
+			return False
 		if self.getTempPlayer(ID) is not None:
 			return False
 		self.players.append(Player(ID, username))
@@ -98,10 +100,10 @@ class PreGame:
 		return len(self.readyPlayers) == len(self.players)
 
 	def canStart(self):
-		if len(self.players) < 2 or len(self.players > 4):
+		playerCount = len(self.players)
+
+		if playerCount < 2 or playerCount > 4:
 			return False
-		if len(self.players) >= 2:
-			return True
 		return self.allPlayerReady()
 
 	def startGame(self):
