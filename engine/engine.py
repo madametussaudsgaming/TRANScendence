@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/30 22:55:28 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/31 16:27:14 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -25,11 +25,25 @@ from tile import (
 	GoToJailTime,
 )
 
+ACTIONS = {
+	"roll":     "rollNMove",
+	"buy":      "buyProperty",
+	"decline":  "declinePurchase",
+	"endTurn":  "endTurn",
+	"mortgage": "mortgage",
+	"build":    "buildHouse",
+	"jailPay":  "payJailFine",
+	"jailCard": "useJailCard",
+	}
+
 JAIL_POSITION = 10
 JAIL_FINE = 50
 MAX_JAIL_TURNS = 3
 MAX_DOUBLES = 3
 PASS_GO_YEEHAW = 200
+
+class GameError(Exception):
+    pass
 
 
 # ----------------------
@@ -321,14 +335,14 @@ class Game:
 
 	def rollNMove(self, playerId):
 		if self.hasRolled == True:
-			return False
+			raise GameError("Already Rolled.")
 		if self.pendingAction is not None:
-			return False
+			raise GameError("Decide on the pending purchase first.")
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
-			return False
+			raise GameError("Not your turn.")
 		if currentPlayer.bankrupt:
-			return False
+			raise GameError("YOU'RE BANKRUPT.")
 
 		if currentPlayer.inJail:
 			dice1 = random.randint(1, 6)
@@ -609,7 +623,20 @@ class GameServer:
 	def getGame(self, gameId):
 		return self.games.get(gameId)
 
-
+	def act(self, gameId, playerId, action, **params):
+		game = self.getGame(gameId)
+		if game is None:
+			return {"success": False, "error": "Game not found"}
+		methodName = ACTIONS.get(action)
+		if methodName is None:
+			return {"success": False, "error": f"Unknown action '{action}'"}
+		try:
+			result = getattr(game, methodName)(playerId, **params)
+			if result is False:
+				return {"success": False, "error": f"Cannot {action} right now"}
+			return {"success": True, "result": result, "state": game.getState(playerId)}
+		except GameError as e:
+			return {"success": False, "error": str(e)}
 
 	# def roll(self, gameId, playerId):
 	# 	game = self.games.get(gameId)
