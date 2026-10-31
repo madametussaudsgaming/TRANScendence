@@ -1,12 +1,12 @@
 # **************************************************************************** #
 #                                                                              #
 #                                                         :::      ::::::::    #
-#    engine.py                                          :+:      :+:    :+:    #
+#    trading.py                                         :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/14 16:31:50 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/10/30 21:51:39 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -365,7 +365,7 @@ class Game:
 					move = self.movePlayer(currentPlayer, total)
 					if not isDouble:
 						self.hasRolled = True
-					effect = self.resolveTile(playerId, tile)
+					effect = self.resolveTile(playerId, total)
 					return 	{
 								"dice": [dice1, dice2],
 								"total": total,
@@ -649,3 +649,17 @@ class GameServer:
 			"success": True,
 			"state": game.getState(playerId)
 		}
+
+	def buyingProperty(self, gameId, playerId):
+		return
+
+	def decliningPurchase(self, gameId, playerId):
+		return
+
+	def endingTurn(self, gameId, playerId):
+		return
+
+	def toMortgage(self, gameId, playerId):
+		return
+
+	def buildHouse(self, gameId, playerId):

@@ -11,7 +11,6 @@
 # **************************************************************************** #
 
 import random
-from engine import Game
 # from engine import moneyManipulate
 
 # ------------------------
@@ -31,6 +30,8 @@ chanceCards = [
 	"Go to jail."
 ]
 
+chanceCardsDiscarded = []
+
 communityChestCards = [
 	"Advance to Go (Collect M200)",
 	"Bank error in your favor!. Collect (M200)",
@@ -42,13 +43,25 @@ communityChestCards = [
 	"You inherit M100"
 ]
 
+communityChestCardsDiscarded = []
+
 def drawChanceCard():
-	random.shuffle(chanceCards)
-	return chanceCards.pop()
+	if chanceCards.len() == 0:
+		chanceCards = chanceCardsDiscarded
+		chanceCardsDiscarded = []
+		random.shuffle(chanceCards)
+	card = chanceCards.pop()
+	chanceCardsDiscarded.append(card)
+	return card
 
 def drawCommunityChestCard():
-	random.shuffle(communityChestCards)
-	return communityChestCards.pop()
+	if communityChestCards.len() == 0:
+			communityChestCards = communityChestCardsDiscarded
+			communityChestCardsDiscarded = []
+			random.shuffle(communityChestCards)
+	card = communityChestCards.pop()
+	communityChestCardsDiscarded.append(card)
+	return card
 
 def applyCardEffects(card, player, Game):
 	if "It's your birthday" in card:
