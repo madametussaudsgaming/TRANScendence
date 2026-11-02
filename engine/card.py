@@ -20,7 +20,7 @@ import random
 # REMINDER - FILL [x] with ACTUAL PROPERTY
 
 chanceCards = [
-	{ "id": "c_adv",    "text": "Advance to Mayfair", "action": "moveTo", "position": 40 },
+	{ "id": "c_adv",    "text": "Advance to Mayfair", "action": "moveTo", "position": 39 },
 	{ "id": "c_go",    "text": "Advance to Go (Collect M200)", "action": "moveTo", "position": 0 },
 	{ "id": "c_back3", "text": "Go back 3 spaces",             "action": "moveBy", "steps": -3 },
 	{ "id": "c_tax",   "text": "Pay a poor tax of M15",        "action": "pay",    "amount": 15 },
