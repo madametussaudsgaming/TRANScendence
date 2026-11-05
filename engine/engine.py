@@ -123,6 +123,7 @@ class Game:
 		self.doubleStreak = 0
 		self.hasRolled = False
 		self.pendingAction = None
+		self.gameOver = False
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -171,6 +172,9 @@ class Game:
 			return False
 		player.money += tile.mortgageValue
 		tile.mortgaged = True
+		if self.pendingAction is not None:
+			if self.pendingAction["playerId"] == playerId:
+				self.resolveDebt(playerId)
 		return True
 
 	def auction(self, position):
@@ -332,6 +336,8 @@ class Game:
 		return {"type": "none"}
 
 	def rollNMove(self, playerId):
+		if self.gameOver:
+			return False
 		if self.hasRolled == True:
 			return False
 		if self.pendingAction is not None:
@@ -534,6 +540,161 @@ class Game:
 			if p.playerId == ID:
 				return p
 		print ("[DEBUG] Player Not Found")
+		return None
+
+	# =============================================
+	# DEBT
+	# =============================================
+
+	def createDebt(self, playerId, amount, reason, creatorId=None, position=None):
+		player = self.getPlayer(playerId)
+
+		if player is None or player.bankrupt:
+			return False
+		if self.pendingAction is not None:
+			return False
+		if amount < 0:
+			return False
+		self.pendingAction = {
+			"type": "debt",
+			"playerId": playerId,
+			"creatorId": creatorId,
+			"amount": amount,
+			"reason": reason,
+			"position": position
+		}
+		return self.resolveDebt(playerId)
+
+	def resolveDebt(self, playerId):
+		debt = self.pendingAction
+
+		if debt is None or debt["type"] != "debt":
+			return False
+		if debt["playerId"] != playerId:
+			return False
+		player = self.getPlayer(playerId)
+		if player is None or player.bankrupt:
+			return False
+		if player.money < debt["amount"]:
+			return {
+				"type": "debt",
+				"amount": debt["amount"],
+				"shortfall": debt["amount"] - player.money,
+				"reason": debt["reason"],
+				"canPay": False
+			}
+		amount = debt["amount"]
+		creditorId = debt["creditorId"]
+
+		if creditorId is None:
+			self.painMoney(playerId, amount)
+		else:
+			if not self.transferMoney(playerId, creditorId, amount):
+				return False
+		self.pendingAction = None
+		return {
+			"type": "debt_paid",
+			"amount": amount,
+			"reason": debt["reason"]
+		}
+
+	def sellHouse(self, playerId, position):
+		player = self.getPlayer(playerId)
+
+		if player is None or player.bankrupt:
+			return False
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		
+		if not isinstance(tile, PropertyTile):
+			return False
+		if tile.owner != player:
+			return False
+		if tile.houses <= 0:
+			return False
+		groupProperties = [
+			t for t in self.board
+			if isinstance(t, PropertyTile)
+			and t.group == tile.group
+			and t.owner == player
+		]
+		if groupProperties:
+			minimumHouses = min(t.houses for t in groupProperties)
+			if tile.houses <= minimumHouses:
+				return False
+		tile.houses -= 1
+		refund = tile.houseCost // 2
+		player.money += refund
+		result = {
+			"success": True,
+			"refund": refund,
+			"housesRemaining": tile.houses,
+		}
+		if self.pendingAction is not None:
+			if self.pendingAction["playerId"] == playerId:
+				result["debt"] = self.resolveDebt(playerId)
+		return result
+
+	# ============================================
+
+	def declareBankruptcy(self, playerId):
+		debt = self.pendingAction
+
+		if debt is None or debt["type"] != "debt":
+			return False
+		if debt["playerId"] != playerId:
+			return False
+		player = self.getPlayer(playerId)
+
+		if player is None or player.bankrupt:
+			return False
+		if player.money >= debt["amount"]:
+			return False
+		creditorId = debt["creditorId"]
+		creditor = self.getPlayer(creditorId) if creditorId is not None else None
+
+		if creditorId is not None and creditor is None:
+			return False
+		for position in player.properties:
+			tile = self.board[position]
+			if isinstance(tile, PropertyTile) and tile.houses > 0:
+				player.money += (tile.houseCost // 2) * tile.houses
+				tile.houses = 0
+		for position in list(player.properties):
+			tile = self.board[position]
+
+			if creditor is not None:
+				tile.owner = creditor
+				creditor.properties.append(position)
+			else:
+				tile.owner = None
+				tile.mortgaged = False
+			player.properties.remove(position)
+		player.bankrupt = True
+		player.inJail = False
+		player.jailTurns = 0
+		player.getOutOfJailCards = 0
+		self.pendingAction = None
+		winner = self.checkGameOver()
+
+		return {
+			"type": "bankruptcy",
+			"playerId": playerId,
+			"creditorId": creditorId,
+			"winner": winner
+		}
+
+	def checkGameOver(self):
+		remainingPlayers = [
+			p for p in self.players
+			if not p.bankrupt
+		]
+		if len(remainingPlayers) <= 1:
+			self.gameOver = True
+			if len(remainingPlayers) == 1:
+				return remainingPlayers[0].playerId
+			return None
 		return None
 
 	def getState(self, playerId):
