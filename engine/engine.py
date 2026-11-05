@@ -96,9 +96,9 @@ class PreGame:
 		return len(self.readyPlayers) == len(self.players)
 
 	def canStart(self):
-		if len(self.players) < 2 or len(self.players > 4):
+		if len(self.players) < 2 or len(self.players) > 4:
 			return False
-		if len(self.players) >= 2:
+		if len(self.players) == 4:
 			return True
 		return self.allPlayerReady()
 
@@ -124,6 +124,7 @@ class Game:
 		self.hasRolled = False
 		self.pendingAction = None
 		self.gameOver = False
+		self.winnerId = None
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -285,21 +286,13 @@ class Game:
 				}
 			rent = self.calculateRent(tile, diceTotal)
 			if player.money < rent:
-				self.pendingAction = {
-					"type": "debt",
-					"playerId": playerId,
-					"recipientId": tile.owner.playerId,
-					"amount": rent,
-					"reason": "rent",
-					"position": player.position
-				}
-				return {
-					"type": "rent_due",
-					"name": tile.name,
-					"ownerId": tile.owner.playerId,
-					"rent": rent,
-					"canPay": False
-				}
+				return self.createDebt (
+					playerId,
+					rent,
+					"rent",
+					creditorId=tile.owner.playerId,
+					position=player.position
+				)
 			self.transferMoney(playerId, tile.owner.playerId, rent)
 			return {
 				"type": "rent_paid",
@@ -309,11 +302,11 @@ class Game:
 			}
 		if isinstance(tile, TaxTile):
 			if player.money < tile.amount:
-				return {
-					"type": "tax_due",
-					"amount": tile.amount,
-					"canPay": False,
-				}
+				return self.createDebt (
+					playerId,
+					tile.amount,
+					"tax"
+				)
 			self.painMoney(playerId, tile.amount)
 			return {
 				"type": "tax_paid",
@@ -380,19 +373,14 @@ class Game:
 								**move
 							}
 				else:
+					currentPlayer.jailTurns += 1
 					self.hasRolled = True
-					move = self.movePlayer(currentPlayer, total)
-					if not isDouble:
-						self.hasRolled = True
-					effect = self.resolveTile(playerId, tile)
-					return 	{
-								"dice": [dice1, dice2],
-								"total": total,
-								"doubles": isDouble,
-								**move,
-								"effect": effect
-							}
-
+					return {
+						"dice": [dice1, dice2],
+						"total": total,
+						"doubles": False,
+						"stillInJail": True
+					}
 		dice1 = random.randint(1, 6)
 		dice2 = random.randint(1, 6)
 		total = dice1 + dice2
@@ -495,6 +483,8 @@ class Game:
 		return True
 
 	def endTurn(self, playerId):
+		if self.gameOver:
+			return False
 		if self.hasRolled != True:
 			return False
 		currentPlayer = self.players[self.currentTurnIndex]
@@ -546,7 +536,7 @@ class Game:
 	# DEBT
 	# =============================================
 
-	def createDebt(self, playerId, amount, reason, creatorId=None, position=None):
+	def createDebt(self, playerId, amount, reason, creditorId=None, position=None):
 		player = self.getPlayer(playerId)
 
 		if player is None or player.bankrupt:
@@ -558,7 +548,7 @@ class Game:
 		self.pendingAction = {
 			"type": "debt",
 			"playerId": playerId,
-			"creatorId": creatorId,
+			"creditorId": creditorId,
 			"amount": amount,
 			"reason": reason,
 			"position": position
@@ -639,12 +629,25 @@ class Game:
 	# ============================================
 
 	def declareBankruptcy(self, playerId):
+		player = self.getPlayer(playerId)
+		if not player:
+			return False
 		debt = self.pendingAction
 
-		if debt is None or debt["type"] != "debt":
+		if not debt or debt["type"] != "debt":
 			return False
 		if debt["playerId"] != playerId:
 			return False
+		if player.money >= debt["amount"]:
+			return False
+		for position in player.properties:
+			tile = self.board[position]
+			if isinstance(tile, PropertyTile) and tile.houses > 0:
+				return False
+		for position in player.properties:
+			tile = self.board[position]
+			if hasattr(tile, "mortgaged") and not tile.mortgaged:
+				return False
 		player = self.getPlayer(playerId)
 
 		if player is None or player.bankrupt:
@@ -656,11 +659,6 @@ class Game:
 
 		if creditorId is not None and creditor is None:
 			return False
-		for position in player.properties:
-			tile = self.board[position]
-			if isinstance(tile, PropertyTile) and tile.houses > 0:
-				player.money += (tile.houseCost // 2) * tile.houses
-				tile.houses = 0
 		for position in list(player.properties):
 			tile = self.board[position]
 
@@ -672,6 +670,9 @@ class Game:
 				tile.mortgaged = False
 			player.properties.remove(position)
 		player.bankrupt = True
+		if creditor is not None:
+			creditor.money += player.money
+		player.money = 0
 		player.inJail = False
 		player.jailTurns = 0
 		player.getOutOfJailCards = 0
@@ -692,13 +693,18 @@ class Game:
 		]
 		if len(remainingPlayers) <= 1:
 			self.gameOver = True
-			if len(remainingPlayers) == 1:
-				return remainingPlayers[0].playerId
-			return None
+			self.winnerId = (
+				remainingPlayers[0].playerId
+				if remainingPlayers else None
+			)
+			return self.winnerId
 		return None
 
 	def getState(self, playerId):
 		player = self.getPlayer(playerId)
+
+		if player is None:
+			return None
 		return {
 			"currentTurn": self.players[self.currentTurnIndex].playerId,
 			"player": {
@@ -710,7 +716,9 @@ class Game:
 				"inJail": player.inJail,
 				"jailTurns": player.jailTurns,
 				"getOutOfJailCards": player.getOutOfJailCards,
-				"bankrupt": player.bankrupt
+				"bankrupt": player.bankrupt,
+				"gameOver": self.gameOver,
+				"winnerId": self.winnerId
 			},
 			"players": [
 				{
@@ -720,7 +728,7 @@ class Game:
 					"money": p.money,
 					"bankrupt": p.bankrupt
 				}
-				for p in self.players
+					for p in self.players
 			],
 			"board": [
 				{
@@ -728,7 +736,7 @@ class Game:
 					"name": tile.name,
 					"owner": tile.owner.playerId if hasattr(tile, "owner") and tile.owner else None,
 					"houses": tile.houses if hasattr(tile, "houses") else 0,
-					"mortgaged": tile.mortgaged if hasattr(tile, "mortgage") else False
+					"mortgaged": tile.mortgaged if hasattr(tile, "mortgaged") else False
 				}
 				if tile else None
 				for tile in self.board
