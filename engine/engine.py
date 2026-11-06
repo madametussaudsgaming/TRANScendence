@@ -125,6 +125,7 @@ class Game:
 		self.pendingAction = None
 		self.gameOver = False
 		self.winnerId = None
+		self.auctionState = None
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -153,8 +154,8 @@ class Game:
 			return False
 		if action["playerId"] != playerId:
 			return False
-		self.pendingAction = None
-		return True
+		position = action["position"]
+		return self.auction(position, playerId)
 
 	def mortgage(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -179,15 +180,132 @@ class Game:
 		return True
 
 	def auction(self, position):
+		action = self.pendingAction
+		
+		if action is not None:
+			if action["type"] != "purchase":
+				return False
+			if action["purchase"] != position:
+				return False
 		if position < 0 or position >= len(self.board):
 			return False
 		tile = self.board[position]
-		if not hasattr(tile, "price"):
+		if not isinstance(tile, (PropertyTile, RailroadTile, UtilityTile)):
 			return False
 		if tile.owner is not None:
 			return False
-		# TODO -> Build the actual bidding when the website is actually up
-		return True
+		activeBidders = [
+			p.playerId for p in self.players
+			if not p.bankrupt
+		]
+		if len(activeBidders) < 2:
+			return False
+		if initiatorId in activeBidders:
+			activeBidders.remove(initiatorId)
+			activeBidders.insert(0, initiatorId)
+		self.auctionState = {
+			"position": position,
+			"currentBid": 0,
+			"highestBidder": None,
+			"activeBidders": activeBidders
+		}
+		self.pendingAction = {
+			"type": "auction",
+			"position": position
+		}
+		return {
+			"type": "auction_started",
+			"position": position,
+			"name": tile.name,
+			"currentBid": 0,
+			"currentBidder": activeBidders[0]
+		}
+
+	def placeBid(self, playerId, amount):
+		state = self.auctionState
+
+		if state is None:
+			return False
+		if not state["activeBidders"]:
+			return False
+		if state["activeBidders"][0] != playerId:
+			return False
+		player = self.getPlayer(playerId)
+
+		if player is None or player.bankrupt:
+			return False
+		if amount <= state["currentBid"]:
+			return False
+		if amount > player.money:
+			return False
+		state["currentBid"] = amount
+		state["highestBidder"] = playerId
+		if len(state["activeBidders"]) == 1:
+			return self.finishAuction()
+		state["activeBidders"].append(state["activeBidders"].pop(0))
+		return {
+			"type": "bid_placed",
+			"playerId": playerId,
+			"amount": amount,
+			"currentBidder": state["activeBidders"][0]
+		}
+
+	def passAuction(self, playerId):
+		state = self.auctionState
+
+		if state is None:
+			return False
+		if not state["activeBidders"]:
+			return False
+		if state["activeBidders"][0] != playerId:
+			return False
+		state["activeBidders"].pop(0)
+		if len(state["activeBidders"]) == 0:
+			return self.finishAuction()
+		if len(state["activeBidders"]) == 1 and state["activeBidders"][0] == state["highestBidder"]:
+			return self.finishAuction()
+		return {
+			"type": "player_passed",
+			"playerId": playerId,
+			"currentBidder": state["activeBidders"][0]
+		}
+
+	def finishAuction(self):
+		state = self.auctionState
+
+		if state is None:
+			return False
+		position = state["position"]
+		tile = self.board[position]
+		winnerId = state["highestBidder"]
+		winnerBid = state["currentBid"]
+
+		if winnerId is None:
+			result = {
+				"type": "auction_ended",
+				"winnerId": None,
+				"message": "Nobody placed a bid"
+			}
+		else:
+			winner = self.getPlayer(winnerId)
+
+			if winner is None or winner.bankrupt:
+				return False
+			if winner.money < winningBid or tile.owner is not None:
+				return False
+			winner.money -= 1
+			winner.properties.append(position)
+			tile.owner = winner
+			result = {
+				"type": "auction_ended",
+				"winnerId": winnerId,
+				"winningBid": winningBid,
+				"position": position,
+				"name": tile.name
+			}
+		self.auctionState = None
+		self.pendingAction = None
+		return result
 
 	def movePlayer(self, player, steps):
 		oldPosition = player.position
@@ -829,5 +947,65 @@ class GameServer:
 			}
 		return {
 			"success": True,
+			"state": game.getState(playerId)
+		}
+
+	def declinePurchase(self, gameId, playerId):
+		game = self.getGame(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game"
+			}
+		result = game.declinePurchase(playerId)
+		if result is False:
+			return {
+				"success": False,
+				"error": "Unable to decline purchase"
+			}
+		return {
+			"success": True,
+			"result": result,
+			"state": game.getState(playerId)
+		}
+
+	def placeBid(self, gameId, playerId, amount):
+		game = self.getGame(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game"
+			}
+		result = game.placeBid(playerId, amount)
+		if result is False:
+			return {
+				"success": False,
+				"error": "Unable to place bid"
+			}
+		return {
+			"success": True,
+			"result": result,
+			"state": game.getState(playerId)
+		}
+
+	def passAuction(self, gameId, playerId):
+		game = self.getGame(gameId)
+
+		if game is None:
+			return {
+				"success": False,
+				"error": "There is no game"
+			}
+		result = game.passAuction(playerId)
+		if result is False:
+			return {
+				"success": False,
+				"error": "Unable to pass auction"
+			}
+		return {
+			"success": True,
+			"result": result,
 			"state": game.getState(playerId)
 		}
