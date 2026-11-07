@@ -126,6 +126,8 @@ class Game:
 		self.gameOver = False
 		self.winnerId = None
 		self.auctionState = None
+		self.tradeOffers = {}
+		self.nextTradeId = 1
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -817,6 +819,130 @@ class Game:
 			)
 			return self.winnerId
 		return None
+
+	def validateTradeProperties(self, player, position):
+		if not isinstance(position, list):
+			return False
+		if len(position) != len(set(position)):
+			return False
+		for position in positions:
+			if not isinstance(position, int) or isinstance(position, bool):
+				return False
+			if position < 0 or position >= len(self.board):
+				return False
+			tile = self.board[position]
+			if not isinstance(tile, (PropertyTile, RailroadTile, UtilityTile)):
+				return False
+			if isinstance(tile, PropertyTile):
+				for groupTile in self.board:
+					if isinstance(groupTile, PropertyTile) and groupTile.group == tile.group and groupTile.houses > 0:
+						return False
+		return True
+
+	def proposeTrade(self, fromPlayerId, toPlayerId, offerProperties=None, requestProperties=None, offerMoney=0, requestMoney=0, offerJailCards=0, requestJailCards=0):
+		fromPlayer = self.getPlayer(fromPlayerId)
+		toPlayer = self.getPlayer(toPlayerId)
+
+		if fromPlayer is None or toPlayer is None:
+			return False
+		if fromPlayer == toPlayer:
+			return False
+		if fromPlayer.bankrupt or toPlayer.bankrupt:
+			return False
+		offerProperties = offerProperties or []
+		requestProperties = requestProperties or []
+		amounts = [offerMoney, requestMoney, offerJailCards, requestJailCards]
+
+		for amount in amounts:
+			if not isinstance(amount, int) or isinstance(amount, bool):
+				return False
+			if amount < 0:
+				return False
+
+	def acceptTrade(self, playerId, tradeId):
+		trade = self.tradeOffers.get(tradeId)
+
+		if trade is None:
+			return False
+		if trade["toPlayerId"] != playerId:
+			return False
+		fromPlayer = self.getPlayer(trade["fromPlayerId"])
+		toPlayer = self.getPlayer(trade["toPlayerId"])
+
+		if fromPlayer is None or toPlayer is None:
+			return False
+		if fromPlayer.bankrupt or toPlayer.bankrupt:
+			return False
+		offerProperties = trade["offerProperties"]
+		requestProperties = trade["requestProperties"]
+
+		if not self.validateTradeProperties(fromPlayer, offerProperties):
+			return False
+		if not self.validateTradeProperties(toPlayer, requestProperties):
+			return False
+		offerMoney = trade["offerMoney"]
+		requestMoney = trade["requestMoney"]
+		offerCards = trade["offerJailCards"]
+		requestCards = trade["requestJailCards"]
+
+		if fromPlayer.money < offerMoney:
+			return False
+		if toPlayer.money < requestMoney:
+			return False
+		if fromPlayer.getOutOfJailCards < offerCards:
+			return False
+		if toPlayer.getOutOfJailCards < requestCards:
+			return False
+		fromInterest = sum(
+			int(self.board[position].mortgageValue * 0.10)
+			for position in requestProperties
+			if self.board[position].mortgaged
+		)
+		toInterest = sum(
+			int(self.board[position].mortgageValue * 0.10)
+			for position in offerProperties
+			if self.board[position].mortgaged
+		)
+		fromBalace = fromPlayer.money - offerMoney + requestMoney - fromInterest
+		toBalance = toPlayer.money - requestMoney + offerMoney - toInterest
+
+		if fromBalace < 0 or toBalance < 0:
+			return False
+		fromPlayer.money = fromBalace
+		toPlayer.money = toBalance
+		from position in offerProperties:
+			fromPlayer.properties.remove(position)
+			toPlayer.properties.append(position)
+			self.board[position].owner = toPlayer
+		from position in requestProperties:
+			toPlayer.properties.remove(position)
+			fromPlayer.properties.append(position)
+			self.board[position].owner = fromPlayer
+		fromPlayer.getOutOfJailCards -= offerCards
+		fromPlayer.getOutOfJailCards += requestCards
+		toPlayer.getOutOfJailCards -= requestCards
+		toPlayer.getOutOfJailCards += offerCards
+
+		del self.tradeOffers[tradeId]
+		return {
+			"type": "trade_accepted",
+			"tradeId": tradeId,
+			"fromPlayerId": fromPlayer.playerId,
+			"toPlayerId": toPlayer.playerId
+		}
+
+	def rejectTrade(self, playerId, tradeId):
+		trade = self.tradeOffers.get(tradeId)
+		
+		if trade is None:
+			return False
+		if trade["toPlayerId"] != playerId:
+			return False
+		del self.tradeOffers[tradeId]
+		return {
+			"type": "trade_rejected",
+			"tradeId": tradeId
+		}
 
 	def getState(self, playerId):
 		player = self.getPlayer(playerId)
