@@ -45,10 +45,29 @@ def loadBoard(path):
 	with open(path) as f:
 		data = json.load(f)
 
-	board = [None] * data["board_size"]
+	boardSize = data["board_size"]
+	board = [None] * boardSize
 	for tileData in data["tiles"]:
-		tileType = tileData.pop("type")
+		tileType = tileData["type"]
 		position = tileData["position"]
+
+		if tileType not in TILE_CLASSES:
+			raise ValueError(f"Unknown tile type: {tileType}")
+		if position < 0 or position >= boardSize:
+			raise ValueError(f"Invalid tile position: {tileType}")
+		if board[position] is not None:
+			raise ValueError(f"Duplicate tile position: {position}")
 		cls = TILE_CLASSES[tileType]
+		tileArgs = {
+			key: value
+			for key, value in tileData.items()
+			if key != "type"
+		}
 		board[position] = cls(**tileData)
+	if any(tile is None for tile in board):
+		missing = [
+			i for i, tile in enumerate(board)
+			if tile is None
+		]
+		raise ValueError(f"Missing board position: {missing}")
 	return board
