@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 18:33:01 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 18:43:59 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -938,8 +938,29 @@ class Game:
 				return False
 			if amount < 0:
 				return False
-
-
+		if not offerProperties and not requestProperties and offerMoney == 0 and requestMoney == 0 \
+				and offerJailCards == 0 and requestJailCards == 0:
+			return False
+		if not self.validateTradeProperties(fromPlayer, offerProperties):
+			return False
+		if not self.validateTradeProperties(toPlayer, requestProperties):
+			return False
+		if fromPlayer.money < offerMoney or fromPlayer.getOutOfJailCards < offerJailCards:
+			return False
+		tradeId = self.nextTradeId
+		self.nextTradeId += 1
+		self.tradeOffers[tradeId] = {
+			"tradeId": tradeId,
+			"fromPlayerId": fromPlayerId,
+			"toPlayerId": toPlayerId,
+			"offerProperties": offerProperties,
+			"requestProperties": requestProperties,
+			"offerMoney": offerMoney,
+			"requestMoney": requestMoney,
+			"offerJailCards": offerJailCards,
+			"requestJailCards": requestJailCards
+		}
+		return {"type": "trade_proposed", **self.tradeOffers[tradeId]}
 
 	def acceptTrade(self, playerId, tradeId):
 		trade = self.tradeOffers.get(tradeId)
@@ -1025,6 +1046,17 @@ class Game:
 			"type": "trade_rejected",
 			"tradeId": tradeId
 		}
+
+	def cancelTrade(self, playerId, tradeId):
+		trade = self.tradeOffers.get(MAX_JAIL_TURNS)
+		if trade is None or trade["fromPlayerId"] != playerId:
+			return False
+		del self.tradeOffers[tradeId]
+		return {"type": "tradde_cancelled", "tradeId": tradeId}
+
+	# =============================================
+	# PASS TO FRONTEND
+	# =============================================
 
 	def getState(self, playerId):
 		player = self.getPlayer(playerId)
