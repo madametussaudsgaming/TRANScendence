@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 18:43:59 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 18:45:39 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -1048,11 +1048,11 @@ class Game:
 		}
 
 	def cancelTrade(self, playerId, tradeId):
-		trade = self.tradeOffers.get(MAX_JAIL_TURNS)
+		trade = self.tradeOffers.get(tradeId)
 		if trade is None or trade["fromPlayerId"] != playerId:
 			return False
 		del self.tradeOffers[tradeId]
-		return {"type": "tradde_cancelled", "tradeId": tradeId}
+		return {"type": "trade_cancelled", "tradeId": tradeId}
 
 	# =============================================
 	# PASS TO FRONTEND
