@@ -6,10 +6,11 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 18:45:39 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 22:00:45 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
+import inspect
 import random
 import card
 
@@ -27,18 +28,22 @@ from tile import (
 )
 
 ACTIONS = {
-	"roll":        "rollNMove",
-	"buy":         "buyProperty",
-	"decline":     "declinePurchase",
-	"endTurn":     "endTurn",
-	"mortgage":    "mortgage",
-	"build":       "buildHouse",
-	"jailPay":     "payJailFine",
-	"jailCard":    "useJailCard",
-	"bid":         "placeBid",
-	"passAuction": "passAuction",
-	"sellHouse":   "sellHouse",
-	"bankrupt":    "declareBankruptcy",
+	"roll":				"rollNMove",
+	"buy":				"buyProperty",
+	"decline":			"declinePurchase",
+	"endTurn":			"endTurn",
+	"mortgage":			"mortgage",
+	"build":			"buildHouse",
+	"jailPay":			"payJailFine",
+	"jailCard":			"useJailCard",
+	"bid":				"placeBid",
+	"passAuction":		"passAuction",
+	"sellHouse":		"sellHouse",
+	"bankrupt":			"declareBankruptcy",
+	"proposeTrade":		"proposeTrade",
+	"acceptTrade":		"acceptTrade",
+	"rejectTrade":		"rejectTrade",
+	"cancelTrade":		"cancelTrade"
 	}
 
 JAIL_POSITION = 10
@@ -573,6 +578,9 @@ class Game:
 		player.inJail = True
 		player.jailTurns = 0
 		self.doubleStreak = 0
+		# going to jail ends your rolling, even if you got there on doubles
+		if self.players[self.currentTurnIndex] == player:
+			self.hasRolled = True
 		return True
 
 	# shared checks for leaving jail before rolling: their turn, in jail, hasn't rolled yet
@@ -659,6 +667,11 @@ class Game:
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
+		self.advanceTurn()
+		return True
+
+	# hand the turn to the next player who isn't bankrupt
+	def advanceTurn(self):
 		self.currentTurnIndex += 1
 		if self.currentTurnIndex >= len(self.players):
 			self.currentTurnIndex = 0
@@ -667,7 +680,7 @@ class Game:
 			if self.currentTurnIndex >= len(self.players):
 				self.currentTurnIndex = 0
 		self.hasRolled = False
-		return True
+		self.doubleStreak = 0
 
 	def gainMoney(self, ID, amount):
 		player = self.getPlayer(ID)
@@ -876,6 +889,10 @@ class Game:
 		self.pendingAction = None
 		winner = self.checkGameOver()
 		self.promoteQueuedDebt()
+		# a bankrupt player can't roll or end their turn, so pass it on for them
+		if not self.gameOver and self.players[self.currentTurnIndex] == player:
+			self.advanceTurn()
+
 
 		return {
 			"type": "bankruptcy",
@@ -1027,12 +1044,18 @@ class Game:
 		toPlayer.getOutOfJailCards += offerCards
 
 		del self.tradeOffers[tradeId]
-		return {
+		result = {
 			"type": "trade_accepted",
 			"tradeId": tradeId,
 			"fromPlayerId": fromPlayer.playerId,
 			"toPlayerId": toPlayer.playerId
 		}
+		# money from the trade may cover a debt either side owes, same as mortgaging or selling houses
+		debt = self.pendingAction
+		if debt is not None and debt["type"] == "debt":
+			if debt["playerId"] in (fromPlayer.playerId, toPlayer.playerId):
+				result["debt"] = self.resolveDebt(debt["playerId"])
+		return result
 
 	def rejectTrade(self, playerId, tradeId):
 		trade = self.tradeOffers.get(tradeId)
@@ -1154,10 +1177,17 @@ class GameServer:
 		methodName = ACTIONS.get(action)
 		if methodName is None:
 			return {"success": False, "error": f"Unknown action '{action}'"}
-		# optional request fields arrive as None, don't pass them to methods that don't take them
-		params = {key: value for key, value in params.items() if value is not None}
+		method = getattr(game, methodName)
+		# only forward the fields this method takes, so a stray field (e.g. tradeId on roll) is ignored
+		accepted = inspect.signature(method).parameters
+		params = {key: value for key, value in params.items() if value is not None and key in accepted}
+		# a missing required field (e.g. position on buy) is a bad request, not a server crash
 		try:
-			result = getattr(game, methodName)(playerId, **params)
+			inspect.signature(method).bind(playerId, **params)
+		except TypeError:
+			return {"success": False, "error": f"Missing fields for '{action}'"}
+		try:
+			result = method(playerId, **params)
 			if result is False:
 				return {"success": False, "error": f"Cannot {action} right now"}
 			return {"success": True, "result": result, "state": game.getState(playerId)}

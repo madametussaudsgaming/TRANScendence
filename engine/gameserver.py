@@ -33,10 +33,37 @@ class ActionRequest(BaseModel):
 		"bid",
 		"passAuction",
 		"sellHouse",
-		"bankrupt"
+		"bankrupt",
+		"proposeTrade",
+		"acceptTrade",
+		"rejectTrade",
+		"cancelTrade"
 	]
 	position: Optional[int] = None
 	amount: Optional[int] = None
+	# trading
+	tradeId: Optional[int] = None
+	toPlayerId: Optional[int] = None
+	offerProperties: Optional[list[int]] = None
+	requestProperties: Optional[list[int]] = None
+	offerMoney: Optional[int] = None
+	requestMoney: Optional[int] = None
+	offerJailCards: Optional[int] = None
+	requestJailCards: Optional[int] = None
+
+# every optional field that gets forwarded to the game method when it's set
+ACTION_PARAMS = (
+	"position",
+	"amount",
+	"tradeId",
+	"toPlayerId",
+	"offerProperties",
+	"requestProperties",
+	"offerMoney",
+	"requestMoney",
+	"offerJailCards",
+	"requestJailCards",
+)
 
 @app.post("/games")
 def createGame(request: CreateGameRequest):
@@ -58,12 +85,12 @@ def createGame(request: CreateGameRequest):
 
 @app.post("/games/{gameId}/action")
 async def doAction(gameId: str, req: ActionRequest):
-    params = {}
-    if req.position is not None:
-    	params["position"] = req.position
-    if req.amount is not None:
-    	params["amount"] = req.amount
-    return server.act(gameId, req.playerId, req.action, **params)
+	params = {}
+	for field in ACTION_PARAMS:
+		value = getattr(req, field)
+		if value is not None:
+			params[field] = value
+	return server.act(gameId, req.playerId, req.action, **params)
 
 # @app.post("/games/{gameId}/roll")
 # def roll(gameId: str, request: RollRequest):
