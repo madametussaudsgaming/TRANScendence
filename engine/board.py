@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    board.py                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: alechin <alechin@student.42kl.edu.my>      +#+  +:+       +#+         #
+#    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 13:56:40 by alechin           #+#    #+#              #
-#    Updated: 2026/09/14 13:56:40 by alechin          ###   ########.fr        #
+#    Updated: 2026/11/08 14:20:59 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -63,7 +63,7 @@ def loadBoard(path):
 			for key, value in tileData.items()
 			if key != "type"
 		}
-		board[position] = cls(**tileData)
+		board[position] = cls(**tileArgs)
 	if any(tile is None for tile in board):
 		missing = [
 			i for i, tile in enumerate(board)

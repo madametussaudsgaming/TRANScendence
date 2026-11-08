@@ -6,11 +6,12 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/10/14 16:31:50 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 15:11:11 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 import random
+import card
 
 from tile import (
 	PropertyTile,
@@ -36,6 +37,8 @@ ACTIONS = {
 	"jailCard":    "useJailCard",
 	"bid":         "placeBid",
 	"passAuction": "passAuction",
+	"sellHouse":   "sellHouse",
+	"bankrupt":    "declareBankruptcy",
 	}
 
 JAIL_POSITION = 10
@@ -147,6 +150,9 @@ class Game:
 		self.auctionState = None
 		self.tradeOffers = {}
 		self.nextTradeId = 1
+		self.chanceDeck = card.newDeck(card.CHANCE_CARDS)
+		self.communityDeck = card.newDeck(card.COMMUNITY_CHEST_CARDS)
+
 
 	def buyProperty(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -202,9 +208,9 @@ class Game:
 				self.resolveDebt(playerId)
 		return True
 
-	def auction(self, position):
+	def auction(self, position, initiatorId):
 		action = self.pendingAction
-		
+
 		if action is not None:
 			if action["type"] != "purchase":
 				return False
@@ -223,6 +229,7 @@ class Game:
 		]
 		if len(activeBidders) < 2:
 			return False
+
 		if initiatorId in activeBidders:
 			activeBidders.remove(initiatorId)
 			activeBidders.insert(0, initiatorId)
@@ -314,7 +321,7 @@ class Game:
 
 			if winner is None or winner.bankrupt:
 				return False
-			if winner.money < winningBid or tile.owner is not None:
+			if winner.money < winnerBid or tile.owner is not None:
 				return False
 			winner.money -= 1
 			winner.properties.append(position)
@@ -322,7 +329,7 @@ class Game:
 			result = {
 				"type": "auction_ended",
 				"winnerId": winnerId,
-				"winningBid": winningBid,
+				"winningBid": winnerBid,
 				"position": position,
 				"name": tile.name
 			}
@@ -383,7 +390,7 @@ class Game:
 			return False
 		if action["playerId"] != playerId:
 			return False
-		
+
 
 	def resolveTile(self, playerId, diceTotal=None):
 		player = self.getPlayer(playerId)
@@ -457,9 +464,11 @@ class Game:
 		if isinstance(tile, JailTile):
 			return {"type": "jail_visit"}
 		if isinstance(tile, ChanceTile):
-			return {"type": "chance"}
+			drawn = card.drawCard(self.chanceDeck, self.chanceDiscard)
+			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
 		if isinstance(tile, CommunityChestTile):
-			return {"type": "community_chance"}
+			drawn = card.drawCard(self.communityDeck, self.chanceDiscard)
+			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
 		if isinstance(tile, FreeParkingTile):
 			return {"type": "free_parking"}
 		return {"type": "none"}
@@ -486,12 +495,14 @@ class Game:
 				self.releaseFromJail(currentPlayer)
 				move = self.movePlayer(currentPlayer, total)
 				self.hasRolled = True
+				effect = self.resolveTile(playerId, total)
 				return {
 							"dice": [dice1, dice2],
 							"total": total,
 							"doubles": isDouble,
 							"stillInJail": False,
-							**move
+							**move,
+							"effect": effect
 						}
 			else:
 				currentPlayer.jailTurns += 1
@@ -501,15 +512,16 @@ class Game:
 					self.releaseFromJail(currentPlayer)
 					self.hasRolled = True
 					move = self.movePlayer(currentPlayer, total)
+					effect = self.resolveTile(playerId, total)
 					return 	{
 								"dice": [dice1, dice2],
 								"total": total,
 								"doubles": isDouble,
 								"stillInJail": False,
-								**move
+								**move,
+								"effect": effect
 							}
 				else:
-					currentPlayer.jailTurns += 1
 					self.hasRolled = True
 					return {
 						"dice": [dice1, dice2],
@@ -539,11 +551,13 @@ class Game:
 		move = self.movePlayer(currentPlayer, total)
 		if isDouble != True:
 			self.hasRolled = True
+		effect = self.resolveTile(playerId, total)
 		return {
 			"dice": [dice1, dice2],
 			"total": total,
 			"doubles": isDouble,
-			**move
+			**move,
+			"effect": effect
 		}
 
 	def sendToJail(self, playerId):
@@ -743,7 +757,7 @@ class Game:
 		if position < 0 or position >= len(self.board):
 			return False
 		tile = self.board[position]
-		
+
 		if not isinstance(tile, PropertyTile):
 			return False
 		if tile.owner != player:
@@ -757,8 +771,8 @@ class Game:
 			and t.owner == player
 		]
 		if groupProperties:
-			minimumHouses = min(t.houses for t in groupProperties)
-			if tile.houses <= minimumHouses:
+			maximumHouses = max(t.houses for t in groupProperties)
+			if tile.houses <= maximumHouses:
 				return False
 		tile.houses -= 1
 		refund = tile.houseCost // 2
@@ -960,7 +974,7 @@ class Game:
 
 	def rejectTrade(self, playerId, tradeId):
 		trade = self.tradeOffers.get(tradeId)
-		
+
 		if trade is None:
 			return False
 		if trade["toPlayerId"] != playerId:
@@ -1063,119 +1077,3 @@ class GameServer:
 			return {"success": True, "result": result, "state": game.getState(playerId)}
 		except GameError as e:
 			return {"success": False, "error": str(e)}
-
-	def roll(self, gameId, playerId):
-		game = self.games.get(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game."
-			}
-		result = game.rollNMove(playerId)
-		if result is False:
-			return {
-				"success": False,
-				"error": "Unable to roll"
-			}
-		return {
-			"success": True,
-			"result": result,
-			"state": game.getState(playerId)
-		}
-
-	def payJailFine(self, gameId, playerId):
-		game = self.games.get(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game."
-			}
-		if not game.payJailFine(playerId):
-			return {
-				"success": False,
-				"error": "Unable to pay jail fine"
-			}
-		return {
-			"success": True,
-			"state": game.getState(playerId)
-		}
-
-	def useJailCard(self, gameId, playerId):
-		game = self.games.get(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game."
-			}
-		if not game.useJailCard(playerId):
-			return {
-				"success": False,
-				"error": "Unable to use get out of jail card"
-			}
-		return {
-			"success": True,
-			"state": game.getState(playerId)
-		}
-
-	def declinePurchase(self, gameId, playerId):
-		game = self.getGame(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game"
-			}
-		result = game.declinePurchase(playerId)
-		if result is False:
-			return {
-				"success": False,
-				"error": "Unable to decline purchase"
-			}
-		return {
-			"success": True,
-			"result": result,
-			"state": game.getState(playerId)
-		}
-
-	def placeBid(self, gameId, playerId, amount):
-		game = self.getGame(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game"
-			}
-		result = game.placeBid(playerId, amount)
-		if result is False:
-			return {
-				"success": False,
-				"error": "Unable to place bid"
-			}
-		return {
-			"success": True,
-			"result": result,
-			"state": game.getState(playerId)
-		}
-
-	def passAuction(self, gameId, playerId):
-		game = self.getGame(gameId)
-
-		if game is None:
-			return {
-				"success": False,
-				"error": "There is no game"
-			}
-		result = game.passAuction(playerId)
-		if result is False:
-			return {
-				"success": False,
-				"error": "Unable to pass auction"
-			}
-		return {
-			"success": True,
-			"result": result,
-			"state": game.getState(playerId)
-		}

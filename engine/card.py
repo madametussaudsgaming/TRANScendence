@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    card.py                                            :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: alechin <alechin@student.42kl.edu.my>      +#+  +:+       +#+         #
+#    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 13:58:25 by alechin           #+#    #+#              #
-#    Updated: 2026/09/14 13:58:25 by alechin          ###   ########.fr        #
+#    Updated: 2026/11/08 15:08:50 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -19,7 +19,7 @@ import random
 
 # REMINDER - FILL [x] with ACTUAL PROPERTY
 
-chanceCards = [
+CHANCE_CARDS = [
 	{ "id": "c_adv",    "text": "Advance to Mayfair", "action": "moveTo", "position": 39 },
 	{ "id": "c_go",    "text": "Advance to Go (Collect M200)", "action": "moveTo", "position": 0 },
 	{ "id": "c_back3", "text": "Go back 3 spaces",             "action": "moveBy", "steps": -3 },
@@ -27,34 +27,45 @@ chanceCards = [
 	{ "id": "c_jail",  "text": "Go to jail.",                  "action": "goToJail" },
 	{ "id": "c_free",  "text": "Get out of jail free",         "action": "jailCard" }
 ]
+# chanceCardsDiscarded = []
 
-chanceCardsDiscarded = []
-
-communityChestCards = [
+COMMUNITY_CHEST_CARDS = [
 	{ "id": "cc_bank", "text": "Bank error in your favor! Collect M200", "action": "collect", "amount": 200 },
 	{ "id": "cc_bday", "text": "It's yo birthday! Collect M10 from each player", "action": "collectFromEach", "amount": 10 }
 ]
+# communityChestCardsDiscarded = []
 
-communityChestCardsDiscarded = []
+def newDeck(template):
+	deck = [dict(card) for card in template]
+	random.shuffle(deck)
+	return deck
 
-
-def drawChanceCard():
-	if chanceCards.len() == 0:
-		chanceCards = chanceCardsDiscarded
-		chanceCardsDiscarded = []
-		random.shuffle(chanceCards)
-	card = chanceCards.pop()
-	chanceCardsDiscarded.append(card)
+def drawCard(deck, discard):
+	if len(deck) == 0:
+		deck.extend(discard)
+		discard.clear()
+		random.shuffle(deck)
+	card = deck.pop()
+	discard.append(card)
 	return card
 
-def drawCommunityChestCard():
-	if communityChestCards.len() == 0:
-			communityChestCards = communityChestCardsDiscarded
-			communityChestCardsDiscarded = []
-			random.shuffle(communityChestCards)
-	card = communityChestCards.pop()
-	communityChestCardsDiscarded.append(card)
-	return card
+# def drawChanceCard():
+# 	if chanceCards.len() == 0:
+# 		chanceCards = chanceCardsDiscarded
+# 		chanceCardsDiscarded = []
+# 		random.shuffle(chanceCards)
+# 	card = chanceCards.pop()
+# 	chanceCardsDiscarded.append(card)
+# 	return card
+
+# def drawCommunityChestCard():
+# 	if communityChestCards.len() == 0:
+# 			communityChestCards = communityChestCardsDiscarded
+# 			communityChestCardsDiscarded = []
+# 			random.shuffle(communityChestCards)
+# 	card = communityChestCards.pop()
+# 	communityChestCardsDiscarded.append(card)
+# 	return card
 
 def doCollect(game, player, card):
 	game.gainMoney(player.playerId, card["amount"])
@@ -69,10 +80,12 @@ def doCollectFromEach(game, player, card):
 
 def doMoveTo(game, player, card):
 	steps = (card["position"] - player.position) % len(game.board)
-	return game.movePlayer(player, steps)
+	move = game.movePlayer(player, steps)
+	return {**move, "effect": game.resolveTile(player.playerId)}
 
 def doMoveBy(game, player, card):
-	return game.movePlayer(player, card["steps"])
+	move = game.movePlayer(player, card["steps"])
+	return {**move, "effect": game.resolveTile(player.playerId)}
 
 def doGoToJail(game, player, card):
 	game.sendToJail(player.playerId)
