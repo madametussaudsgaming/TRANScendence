@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 22:00:45 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 23:02:21 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -70,6 +70,8 @@ class Player:
 		self.inJail = False
 		self.jailTurns = 0
 		self.getOutOfJailCards = 0
+		# the actual jail cards held, kept in sync with getOutOfJailCards so they can go back to their deck
+		self.jailCards = []
 		self.bankrupt = False
 
 class PreGame:
@@ -155,8 +157,8 @@ class Game:
 		self.auctionState = None
 		self.tradeOffers = {}
 		self.nextTradeId = 1
-		self.chanceDeck = card.newDeck(card.CHANCE_CARDS)
-		self.communityDeck = card.newDeck(card.COMMUNITY_CHEST_CARDS)
+		self.chanceDeck = card.newDeck(card.CHANCE_CARDS, "chance")
+		self.communityDeck = card.newDeck(card.COMMUNITY_CHEST_CARDS, "community")
 		self.chanceDiscard = []
 		self.communityDiscard = []
 		# debts waiting for pendingAction to be free, e.g. several players owing at once from a card
@@ -213,11 +215,16 @@ class Game:
 			return False
 		player.money += tile.mortgageValue
 		tile.mortgaged = True
+		result = {
+			"type": "mortgaged",
+			"position": position,
+			"received": tile.mortgageValue
+		}
 		# only a debt can be paid off here, auctions have no playerId
 		if self.pendingAction is not None and self.pendingAction["type"] == "debt":
 			if self.pendingAction["playerId"] == playerId:
-				self.resolveDebt(playerId)
-		return True
+				result["debt"] = self.resolveDebt(playerId)
+		return result
 
 	def auction(self, position, initiatorId):
 		action = self.pendingAction
@@ -616,8 +623,32 @@ class Game:
 		if player.getOutOfJailCards <= 0:
 			return False
 		player.getOutOfJailCards -= 1
+		if player.jailCards:
+			self.returnJailCard(player.jailCards.pop())
 		self.releaseFromJail(player)
 		return True
+
+	# =============================================
+	# JAIL CARDS
+	# =============================================
+
+	def giveJailCard(self, player, jailCard):
+		player.jailCards.append(jailCard)
+		player.getOutOfJailCards += 1
+
+	# a used (or forfeited) jail card goes to the bottom of its own deck's discard pile
+	def returnJailCard(self, jailCard):
+		if jailCard["deck"] == "chance":
+			self.chanceDiscard.append(jailCard)
+		else:
+			self.communityDiscard.append(jailCard)
+
+	def moveJailCards(self, fromPlayer, toPlayer, count):
+		for _ in range(count):
+			if fromPlayer.jailCards:
+				toPlayer.jailCards.append(fromPlayer.jailCards.pop())
+		fromPlayer.getOutOfJailCards -= count
+		toPlayer.getOutOfJailCards += count
 
 	# all() on an empty list is True, so an unknown colour must not count as owned, this function was generatedd as a test
 	def hasColorSet(self, player, setColor):
@@ -650,6 +681,8 @@ class Game:
 		if player.money < tile.houseCost:
 			return False
 		if not self.hasColorSet(player, tile.group):
+			return False
+		if tile.houses > min(t.houses for t in tile.group):
 			return False
 
 		self.painMoney(playerId, tile.houseCost)
@@ -885,7 +918,17 @@ class Game:
 		player.money = 0
 		player.inJail = False
 		player.jailTurns = 0
+		# held jail cards go back to their decks
+		for jailCard in player.jailCards:
+			self.returnJailCard(jailCard)
+		player.jailCards = []
 		player.getOutOfJailCards = 0
+		# delete da pending trade offers so we dont haave grayouts
+		self.tradeOffers = {
+			tradeId: trade
+			for tradeId, trade in self.tradeOffers.items()
+			if playerId not in (trade["fromPlayerId"], trade["toPlayerId"])
+		}
 		self.pendingAction = None
 		winner = self.checkGameOver()
 		self.promoteQueuedDebt()
@@ -1038,10 +1081,8 @@ class Game:
 			toPlayer.properties.remove(position)
 			fromPlayer.properties.append(position)
 			self.board[position].owner = fromPlayer
-		fromPlayer.getOutOfJailCards -= offerCards
-		fromPlayer.getOutOfJailCards += requestCards
-		toPlayer.getOutOfJailCards -= requestCards
-		toPlayer.getOutOfJailCards += offerCards
+		self.moveJailCards(fromPlayer, toPlayer, offerCards)
+		self.moveJailCards(toPlayer, fromPlayer, requestCards)
 
 		del self.tradeOffers[tradeId]
 		result = {
