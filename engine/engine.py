@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 15:11:11 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 16:33:53 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -152,6 +152,8 @@ class Game:
 		self.nextTradeId = 1
 		self.chanceDeck = card.newDeck(card.CHANCE_CARDS)
 		self.communityDeck = card.newDeck(card.COMMUNITY_CHEST_CARDS)
+		self.chanceDiscard = []
+		self.communityDiscard = []
 
 
 	def buyProperty(self, playerId, position):
@@ -203,7 +205,8 @@ class Game:
 			return False
 		player.money += tile.mortgageValue
 		tile.mortgaged = True
-		if self.pendingAction is not None:
+		# only a debt can be paid off here, auctions have no playerId
+		if self.pendingAction is not None and self.pendingAction["type"] == "debt":
 			if self.pendingAction["playerId"] == playerId:
 				self.resolveDebt(playerId)
 		return True
@@ -214,7 +217,7 @@ class Game:
 		if action is not None:
 			if action["type"] != "purchase":
 				return False
-			if action["purchase"] != position:
+			if action["position"] != position:
 				return False
 		if position < 0 or position >= len(self.board):
 			return False
@@ -323,7 +326,7 @@ class Game:
 				return False
 			if winner.money < winnerBid or tile.owner is not None:
 				return False
-			winner.money -= 1
+			winner.money -= winnerBid
 			winner.properties.append(position)
 			tile.owner = winner
 			result = {
@@ -467,8 +470,8 @@ class Game:
 			drawn = card.drawCard(self.chanceDeck, self.chanceDiscard)
 			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
 		if isinstance(tile, CommunityChestTile):
-			drawn = card.drawCard(self.communityDeck, self.chanceDiscard)
-			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
+			drawn = card.drawCard(self.communityDeck, self.communityDiscard)
+			return {"type": "community_test", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
 		if isinstance(tile, FreeParkingTile):
 			return {"type": "free_parking"}
 		return {"type": "none"}
@@ -507,18 +510,16 @@ class Game:
 			else:
 				currentPlayer.jailTurns += 1
 				if currentPlayer.jailTurns >= MAX_JAIL_TURNS:
-					self.painMoney(playerId, JAIL_FINE)
-					# TODO: bankruptcy if money < 0.
-					self.releaseFromJail(currentPlayer)
+					# the fine goes through the debt system: paid now if affordable, otherwise the player
+					# has to mortgage/sell houses or declare bankruptcy, and only leaves jail once it's paid
+					# this took so long to figure out
 					self.hasRolled = True
-					move = self.movePlayer(currentPlayer, total)
-					effect = self.resolveTile(playerId, total)
+					effect = self.createDebt(playerId, JAIL_FINE, "jailFine", jailExitRoll=total)
 					return 	{
 								"dice": [dice1, dice2],
 								"total": total,
 								"doubles": isDouble,
-								"stillInJail": False,
-								**move,
+								"stillInJail": currentPlayer.inJail,
 								"effect": effect
 							}
 				else:
@@ -648,6 +649,9 @@ class Game:
 			return False
 		if self.hasRolled != True:
 			return False
+		# a purchase, auction or debt must be settled before the turn can pass
+		if self.pendingAction is not None:
+			raise GameError("Resolve the pending action first.")
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
 			return False
@@ -697,7 +701,8 @@ class Game:
 	# DEBT
 	# =============================================
 
-	def createDebt(self, playerId, amount, reason, creditorId=None, position=None):
+	# jailExitRoll: dice total to move by once a jail fine is paid, None for every other debt
+	def createDebt(self, playerId, amount, reason, creditorId=None, position=None, jailExitRoll=None):
 		player = self.getPlayer(playerId)
 
 		if player is None or player.bankrupt:
@@ -712,7 +717,8 @@ class Game:
 			"creditorId": creditorId,
 			"amount": amount,
 			"reason": reason,
-			"position": position
+			"position": position,
+			"jailExitRoll": jailExitRoll
 		}
 		return self.resolveDebt(playerId)
 
@@ -743,11 +749,18 @@ class Game:
 			if not self.transferMoney(playerId, creditorId, amount):
 				return False
 		self.pendingAction = None
-		return {
+		result = {
 			"type": "debt_paid",
 			"amount": amount,
 			"reason": debt["reason"]
 		}
+		# jail fine paid, so the player can now leave jail and move by the roll that was on hold
+		jailExitRoll = debt.get("jailExitRoll")
+		if jailExitRoll is not None:
+			self.releaseFromJail(player)
+			move = self.movePlayer(player, jailExitRoll)
+			result["jailExit"] = {**move, "effect": self.resolveTile(playerId, jailExitRoll)}
+		return result
 
 	def sellHouse(self, playerId, position):
 		player = self.getPlayer(playerId)
@@ -772,7 +785,7 @@ class Game:
 		]
 		if groupProperties:
 			maximumHouses = max(t.houses for t in groupProperties)
-			if tile.houses <= maximumHouses:
+			if tile.houses < maximumHouses:
 				return False
 		tile.houses -= 1
 		refund = tile.houseCost // 2
@@ -782,7 +795,7 @@ class Game:
 			"refund": refund,
 			"housesRemaining": tile.houses,
 		}
-		if self.pendingAction is not None:
+		if self.pendingAction is not None and self.pendingAction["type"] == "debt":
 			if self.pendingAction["playerId"] == playerId:
 				result["debt"] = self.resolveDebt(playerId)
 		return result
@@ -861,10 +874,10 @@ class Game:
 			return self.winnerId
 		return None
 
-	def validateTradeProperties(self, player, position):
-		if not isinstance(position, list):
+	def validateTradeProperties(self, player, positions):
+		if not isinstance(positions, list):
 			return False
-		if len(position) != len(set(position)):
+		if len(positions) != len(set(positions)):
 			return False
 		for position in positions:
 			if not isinstance(position, int) or isinstance(position, bool):
@@ -873,6 +886,8 @@ class Game:
 				return False
 			tile = self.board[position]
 			if not isinstance(tile, (PropertyTile, RailroadTile, UtilityTile)):
+				return False
+			if tile.owner != player:
 				return False
 			if isinstance(tile, PropertyTile):
 				for groupTile in self.board:
