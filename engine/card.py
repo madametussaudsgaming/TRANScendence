@@ -35,8 +35,9 @@ COMMUNITY_CHEST_CARDS = [
 ]
 # communityChestCardsDiscarded = []
 
-def newDeck(template):
-	deck = [dict(card) for card in template]
+# deckName is stored on every card so a held jail card knows which discard pile to go back to
+def newDeck(template, deckName):
+	deck = [{**card, "deck": deckName} for card in template]
 	random.shuffle(deck)
 	return deck
 
@@ -46,7 +47,9 @@ def drawCard(deck, discard):
 		discard.clear()
 		random.shuffle(deck)
 	card = deck.pop()
-	discard.append(card)
+	# a jail card stays with the player who drew it, it only goes back once it's used
+	if card["action"] != "jailCard":
+		discard.append(card)
 	return card
 
 # def drawChanceCard():
@@ -97,7 +100,7 @@ def doGoToJail(game, player, card, diceTotal=None):
 	game.sendToJail(player.playerId)
 
 def doJailCard(game, player, card, diceTotal=None):
-	player.getOutOfJailCards += 1
+	game.giveJailCard(player, card)
 
 CARD_ACTIONS = {
 	"collect": doCollect,

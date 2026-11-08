@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 23:02:21 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 23:25:48 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -43,7 +43,8 @@ ACTIONS = {
 	"proposeTrade":		"proposeTrade",
 	"acceptTrade":		"acceptTrade",
 	"rejectTrade":		"rejectTrade",
-	"cancelTrade":		"cancelTrade"
+	"cancelTrade":		"cancelTrade",
+	"unmortgage":		"unmortgage"
 	}
 
 JAIL_POSITION = 10
@@ -225,6 +226,32 @@ class Game:
 			if self.pendingAction["playerId"] == playerId:
 				result["debt"] = self.resolveDebt(playerId)
 		return result
+
+	def unmortgage(self, playerId, position):
+		player = self.getPlayer(playerId)
+		if player is None:
+			return False
+		if position < 0 or position >= len(self.board):
+			return False
+		tile = self.board[position]
+		if not hasattr(tile, "owner"):
+			return False
+		if tile.owner != player:
+			return False
+		if not tile.mortgaged:
+			return False
+		unmortgageCost = tile.mortgageValue + int(tile.mortgageValue * 0.10)
+		if unmortgageCost > player.money:
+			return False
+		else:
+			self.painMoney(playerId, unmortgageCost)
+			tile.mortgaged = False
+			return {
+				"type": "unmortgaged",
+				"position": position,
+				"cost": unmortgageCost
+			}
+
 
 	def auction(self, position, initiatorId):
 		action = self.pendingAction

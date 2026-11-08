@@ -37,7 +37,8 @@ class ActionRequest(BaseModel):
 		"proposeTrade",
 		"acceptTrade",
 		"rejectTrade",
-		"cancelTrade"
+		"cancelTrade",
+		"unmortgage"
 	]
 	position: Optional[int] = None
 	amount: Optional[int] = None
