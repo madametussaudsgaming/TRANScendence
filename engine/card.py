@@ -67,30 +67,36 @@ def drawCard(deck, discard):
 # 	communityChestCardsDiscarded.append(card)
 # 	return card
 
-def doCollect(game, player, card):
+# every handler takes diceTotal (the roll that landed the player on the card) so moves can charge utility rent
+
+def doCollect(game, player, card, diceTotal=None):
 	game.gainMoney(player.playerId, card["amount"])
 
-def doPay(game, player, card):
-	game.painMoney(player.playerId, card["amount"])
+# goes through the debt system so money can't go negative
+def doPay(game, player, card, diceTotal=None):
+	return game.createDebt(player.playerId, card["amount"], "card")
 
-def doCollectFromEach(game, player, card):
-	for p in game.players:
-		if p.playerId != player.playerId and not p.bankrupt:
-			game.transferMoney(p.playerId, player.playerId, card["amount"])
+# each player owes the drawer, players who can't pay get queued debts
+def doCollectFromEach(game, player, card, diceTotal=None):
+	return [
+		game.createDebt(p.playerId, card["amount"], "card", creditorId=player.playerId)
+		for p in game.players
+		if p.playerId != player.playerId and not p.bankrupt
+	]
 
-def doMoveTo(game, player, card):
+def doMoveTo(game, player, card, diceTotal=None):
 	steps = (card["position"] - player.position) % len(game.board)
 	move = game.movePlayer(player, steps)
-	return {**move, "effect": game.resolveTile(player.playerId)}
+	return {**move, "effect": game.resolveTile(player.playerId, diceTotal)}
 
-def doMoveBy(game, player, card):
+def doMoveBy(game, player, card, diceTotal=None):
 	move = game.movePlayer(player, card["steps"])
-	return {**move, "effect": game.resolveTile(player.playerId)}
+	return {**move, "effect": game.resolveTile(player.playerId, diceTotal)}
 
-def doGoToJail(game, player, card):
+def doGoToJail(game, player, card, diceTotal=None):
 	game.sendToJail(player.playerId)
 
-def doJailCard(game, player, card):
+def doJailCard(game, player, card, diceTotal=None):
 	player.getOutOfJailCards += 1
 
 CARD_ACTIONS = {
@@ -103,11 +109,11 @@ CARD_ACTIONS = {
 	"jailCard": doJailCard,
 }
 
-def applyCardEffects(card, player, game):
+def applyCardEffects(card, player, game, diceTotal=None):
 	cardAction = CARD_ACTIONS.get(card["action"])
 	if cardAction is None:
 		return {"type": "error", "message": f"Unknown card action {card['action']}"}
-	return cardAction(game, player, card)
+	return cardAction(game, player, card, diceTotal)
 
 # old way is  too unstable and is hard to implement new shit
 
