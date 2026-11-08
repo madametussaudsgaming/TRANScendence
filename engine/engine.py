@@ -25,11 +25,28 @@ from tile import (
 	GoToJailTime,
 )
 
+ACTIONS = {
+	"roll":        "rollNMove",
+	"buy":         "buyProperty",
+	"decline":     "declinePurchase",
+	"endTurn":     "endTurn",
+	"mortgage":    "mortgage",
+	"build":       "buildHouse",
+	"jailPay":     "payJailFine",
+	"jailCard":    "useJailCard",
+	"bid":         "placeBid",
+	"passAuction": "passAuction",
+	}
+
 JAIL_POSITION = 10
 JAIL_FINE = 50
 MAX_JAIL_TURNS = 3
 MAX_DOUBLES = 3
 PASS_GO_YEEHAW = 200
+
+class GameError(Exception):
+    pass
+
 
 # ----------------------
 # PLAYER
@@ -66,6 +83,8 @@ class PreGame:
 
 	def tempPlayerJoin(self, ID, username):
 		if self.started:
+			return False
+		if len(self.players) >= 4:
 			return False
 		if self.getTempPlayer(ID) is not None:
 			return False
@@ -133,6 +152,8 @@ class Game:
 		player = self.getPlayer(playerId)
 		if player is None:
 			return False
+		# check that pendingAction matches THIS player and position
+		if self.pendingAction != {"type": "purchase", "playerId": playerId, "position": position}: return False
 		if position < 0 or position >= len(self.board):
 			return False
 		tile = self.board[position]
@@ -332,14 +353,9 @@ class Game:
 		if isinstance(tile, PropertyTile):
 			rentIndex = min(tile.houses, len(tile.rentLevels) - 1)
 			rent = tile.rentLevels[rentIndex]
-			if tile.houses == 0:
-				groupProperties = [
-					t for t in self.board
-					if isinstance(t, PropertyTile)
-					and t.group == tile.group
-				]
-				if groupProperties and all(t.owner == tile.owner for t in groupProperties):
-					rent *= 2
+
+			if tile.houses == 0 and self.hasColorSet(tile.owner, tile.group):
+				rent *= 2
 			return rent
 		elif isinstance(tile, RailroadTile):
 			ownerRailroads = sum(
@@ -450,16 +466,16 @@ class Game:
 
 	def rollNMove(self, playerId):
 		if self.gameOver:
-			return False
+			raise GameError("The game is over.")
 		if self.hasRolled == True:
-			return False
+			raise GameError("Already Rolled.")
 		if self.pendingAction is not None:
-			return False
+			raise GameError("Resolve the pending action first.")
 		currentPlayer = self.players[self.currentTurnIndex]
 		if currentPlayer.playerId != playerId:
-			return False
+			raise GameError("Not your turn.")
 		if currentPlayer.bankrupt:
-			return False
+			raise GameError("YOU'RE BANKRUPT.")
 
 		if currentPlayer.inJail:
 			dice1 = random.randint(1, 6)
@@ -576,6 +592,17 @@ class Game:
 		self.releaseFromJail(player)
 		return True
 
+	# all() on an empty list is True, so an unknown colour must not count as owned, this function was generatedd as a test
+	def hasColorSet(self, player, setColor):
+		groupProperties = [
+			t for t in self.board
+			if isinstance(t, PropertyTile)
+			and t.group == setColor
+		]
+		if len(groupProperties) == 0:
+			return False
+		return all(t.owner == player for t in groupProperties)
+
 	def buildHouse(self, playerId, position):
 		player = self.getPlayer(playerId)
 		if player is None:
@@ -595,10 +622,10 @@ class Game:
 			return False
 		if player.money < tile.houseCost:
 			return False
+		if not self.hasColorSet(player, tile.group):
+			return False
 
-		# TODO -> check whether the player has ALL its respective colored groups
-
-		player.money -= tile.houseCost
+		self.painMoney(playerId, tile.houseCost)
 		tile.houses += 1
 		return True
 
@@ -910,11 +937,11 @@ class Game:
 			return False
 		fromPlayer.money = fromBalace
 		toPlayer.money = toBalance
-		from position in offerProperties:
+		for position in offerProperties:
 			fromPlayer.properties.remove(position)
 			toPlayer.properties.append(position)
 			self.board[position].owner = toPlayer
-		from position in requestProperties:
+		for position in requestProperties:
 			toPlayer.properties.remove(position)
 			fromPlayer.properties.append(position)
 			self.board[position].owner = fromPlayer
@@ -1019,6 +1046,23 @@ class GameServer:
 
 	def getGame(self, gameId):
 		return self.games.get(gameId)
+
+	def act(self, gameId, playerId, action, **params):
+		game = self.getGame(gameId)
+		if game is None:
+			return {"success": False, "error": "Game not found"}
+		methodName = ACTIONS.get(action)
+		if methodName is None:
+			return {"success": False, "error": f"Unknown action '{action}'"}
+		# optional request fields arrive as None, don't pass them to methods that don't take them
+		params = {key: value for key, value in params.items() if value is not None}
+		try:
+			result = getattr(game, methodName)(playerId, **params)
+			if result is False:
+				return {"success": False, "error": f"Cannot {action} right now"}
+			return {"success": True, "result": result, "state": game.getState(playerId)}
+		except GameError as e:
+			return {"success": False, "error": str(e)}
 
 	def roll(self, gameId, playerId):
 		game = self.games.get(gameId)
