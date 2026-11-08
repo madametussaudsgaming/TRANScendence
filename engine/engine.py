@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 16:33:53 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/08 18:33:01 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -154,6 +154,8 @@ class Game:
 		self.communityDeck = card.newDeck(card.COMMUNITY_CHEST_CARDS)
 		self.chanceDiscard = []
 		self.communityDiscard = []
+		# debts waiting for pendingAction to be free, e.g. several players owing at once from a card
+		self.debtQueue = []
 
 
 	def buyProperty(self, playerId, position):
@@ -175,6 +177,7 @@ class Game:
 		tile.owner = player
 		player.properties.append(position)
 		self.pendingAction = None
+		self.promoteQueuedDebt()
 		return True
 
 	def declinePurchase(self, playerId):
@@ -338,6 +341,7 @@ class Game:
 			}
 		self.auctionState = None
 		self.pendingAction = None
+		self.promoteQueuedDebt()
 		return result
 
 	def movePlayer(self, player, steps):
@@ -468,10 +472,10 @@ class Game:
 			return {"type": "jail_visit"}
 		if isinstance(tile, ChanceTile):
 			drawn = card.drawCard(self.chanceDeck, self.chanceDiscard)
-			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
+			return {"type": "chance", "card": drawn, "result": card.applyCardEffects(drawn, player, self, diceTotal)}
 		if isinstance(tile, CommunityChestTile):
 			drawn = card.drawCard(self.communityDeck, self.communityDiscard)
-			return {"type": "community_test", "card": drawn, "result": card.applyCardEffects(drawn, player, self)}
+			return {"type": "community_chest", "card": drawn, "result": card.applyCardEffects(drawn, player, self, diceTotal)}
 		if isinstance(tile, FreeParkingTile):
 			return {"type": "free_parking"}
 		return {"type": "none"}
@@ -707,11 +711,9 @@ class Game:
 
 		if player is None or player.bankrupt:
 			return False
-		if self.pendingAction is not None:
-			return False
 		if amount < 0:
 			return False
-		self.pendingAction = {
+		debt = {
 			"type": "debt",
 			"playerId": playerId,
 			"creditorId": creditorId,
@@ -720,7 +722,27 @@ class Game:
 			"position": position,
 			"jailExitRoll": jailExitRoll
 		}
+		# something else is already pending, so this debt waits its turn
+		if self.pendingAction is not None:
+			self.debtQueue.append(debt)
+			return {
+				"type": "debt_queued",
+				"playerId": playerId,
+				"amount": amount,
+				"reason": reason
+			}
+		self.pendingAction = debt
 		return self.resolveDebt(playerId)
+
+	# move the next queued debt into pendingAction once it's free, paying it straight away if affordable
+	def promoteQueuedDebt(self):
+		while self.pendingAction is None and self.debtQueue and not self.gameOver:
+			debt = self.debtQueue.pop(0)
+			player = self.getPlayer(debt["playerId"])
+			if player is None or player.bankrupt:
+				continue
+			self.pendingAction = debt
+			self.resolveDebt(debt["playerId"])
 
 	def resolveDebt(self, playerId):
 		debt = self.pendingAction
@@ -760,6 +782,7 @@ class Game:
 			self.releaseFromJail(player)
 			move = self.movePlayer(player, jailExitRoll)
 			result["jailExit"] = {**move, "effect": self.resolveTile(playerId, jailExitRoll)}
+		self.promoteQueuedDebt()
 		return result
 
 	def sellHouse(self, playerId, position):
@@ -852,6 +875,7 @@ class Game:
 		player.getOutOfJailCards = 0
 		self.pendingAction = None
 		winner = self.checkGameOver()
+		self.promoteQueuedDebt()
 
 		return {
 			"type": "bankruptcy",
@@ -914,6 +938,8 @@ class Game:
 				return False
 			if amount < 0:
 				return False
+
+
 
 	def acceptTrade(self, playerId, tradeId):
 		trade = self.tradeOffers.get(tradeId)
@@ -1007,6 +1033,14 @@ class Game:
 			return None
 		return {
 			"currentTurn": self.players[self.currentTurnIndex].playerId,
+			"hasRolled": self.hasRolled,
+			"doubleStreak": self.doubleStreak,
+			"gameOver": self.gameOver,
+			"winnerId": self.winnerId,
+			"pendingAction": self.pendingAction,
+			"auction": self.auctionState,
+			"debtQueue": self.debtQueue,
+			"tradeOffers": list(self.tradeOffers.values()),
 			"player": {
 				"id": player.playerId,
 				"name": player.name,
@@ -1017,8 +1051,6 @@ class Game:
 				"jailTurns": player.jailTurns,
 				"getOutOfJailCards": player.getOutOfJailCards,
 				"bankrupt": player.bankrupt,
-				"gameOver": self.gameOver,
-				"winnerId": self.winnerId
 			},
 			"players": [
 				{
@@ -1026,7 +1058,10 @@ class Game:
 					"name": p.name,
 					"position": p.position,
 					"money": p.money,
-					"bankrupt": p.bankrupt
+					"bankrupt": p.bankrupt,
+					"properties": p.properties,
+					"inJail": p.inJail,
+					"getOutOfJailCards": p.getOutOfJailCards
 				}
 					for p in self.players
 			],
@@ -1034,14 +1069,18 @@ class Game:
 				{
 					"position": tile.position,
 					"name": tile.name,
-					"owner": tile.owner.playerId if hasattr(tile, "owner") and tile.owner else None,
-					"houses": tile.houses if hasattr(tile, "houses") else 0,
-					"mortgaged": tile.mortgaged if hasattr(tile, "mortgaged") else False
+					"type": type(tile).__name__,
+					"group": getattr(tile, "group", None),
+					"price": getattr(tile, "price", None),
+					"owner": tile.owner.playerId if getattr(tile, "owner", None) else None,
+					"houses": getattr(tile, "houses", 0),
+					"mortgaged": getattr(tile, "mortgaged", False)
 				}
 				if tile else None
 				for tile in self.board
 			]
 		}
+#we use getattr because we might want the actual value not just booleans, nobody should know the state of the decks except ME (cheat modes)
 
 class GameServer:
 	def __init__(self):
