@@ -6,7 +6,7 @@
 #    By: rpadasia <ryanpadasian@gmail.com>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/09/14 14:28:44 by alechin           #+#    #+#              #
-#    Updated: 2026/11/08 23:25:48 by rpadasia         ###   ########.fr        #
+#    Updated: 2026/11/09 15:25:29 by rpadasia         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -212,8 +212,10 @@ class Game:
 			return False
 		if tile.mortgaged:
 			return False
-		if hasattr(tile, "houses") and tile.houses > 0:
-			return False
+		if isinstance(tile, PropertyTile):
+			for t in self.board:
+				if isinstance(t, PropertyTile) and t.group == tile.group and t.houses > 0:
+					return False
 		player.money += tile.mortgageValue
 		tile.mortgaged = True
 		result = {
@@ -354,20 +356,14 @@ class Game:
 		tile = self.board[position]
 		winnerId = state["highestBidder"]
 		winnerBid = state["currentBid"]
-
-		if winnerId is None:
+		winner = self.getPlayer(winnerId) if winnerId is not None else None
+		if winner is None or winner.bankrupt or winner.money < winnerBid or tile.owner is not None:
 			result = {
 				"type": "auction_ended",
 				"winnerId": None,
-				"message": "Nobody placed a bid"
+				"message": "No valid bids"
 			}
 		else:
-			winner = self.getPlayer(winnerId)
-
-			if winner is None or winner.bankrupt:
-				return False
-			if winner.money < winnerBid or tile.owner is not None:
-				return False
 			winner.money -= winnerBid
 			winner.properties.append(position)
 			tile.owner = winner
@@ -709,7 +705,12 @@ class Game:
 			return False
 		if not self.hasColorSet(player, tile.group):
 			return False
-		if tile.houses > min(t.houses for t in tile.group):
+		group = [
+			t for t in self.board
+			if isinstance(t, PropertyTile)
+				and t.group == tile.group
+		]
+		if tile.houses > min(t.houses for t in group):
 			return False
 
 		self.painMoney(playerId, tile.houseCost)
@@ -1252,6 +1253,7 @@ class GameServer:
 		# a missing required field (e.g. position on buy) is a bad request, not a server crash
 		try:
 			inspect.signature(method).bind(playerId, **params)
+			#drops unnecssary stuff, returns "missing fields' if requirements arent sent
 		except TypeError:
 			return {"success": False, "error": f"Missing fields for '{action}'"}
 		try:
