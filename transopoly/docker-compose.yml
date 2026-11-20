@@ -1,0 +1,19 @@
+services:
+  game:
+    build: ./backend/game
+    container_name: transopoly-game
+    restart: unless-stopped
+    # For testing on your machine only. Once nginx (HTTPS) and Rails are added,
+    # remove "ports" so the engine is reachable only inside the Docker network
+    # (Rails will call it at http://game:8000).
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # Later:
+  # rails:
+  #   build: ./backend/rails
+  #   environment:
+  #     PYTHON_GAME_SERVER_URL: http://game:8000
+  #   depends_on:
+  #     game:
+  #       condition: service_healthy
