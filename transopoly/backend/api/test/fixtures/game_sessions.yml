@@ -1,0 +1,11 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  host: one
+  status: MyString
+  python_game_id: MyString
+
+two:
+  host: two
+  status: MyString
+  python_game_id: MyString
