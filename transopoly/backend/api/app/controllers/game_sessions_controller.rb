@@ -36,7 +36,7 @@ class GameSessionsController < ApplicationController
 			}
 		end
 	end
-	
+
 
 	def join
 		game = GameSession.find(params[:id])
@@ -46,23 +46,23 @@ class GameSessionsController < ApplicationController
 				error: "Game has already started"
 			}, status: :unprocessable_content
 		end
-
-		if game.full?
-			return render json: {
-				success: false,
-				error: "Game is full"
-			}, status: :unprocessable_content
-		end
-
-		if game.players.exists?(current_user.id)
-			return render json: {
-				success: false,
-				error: "Already in game"
-			}, status: :unprocessable_content
-		end
-
-		# mutex time!
 		game.with_lock do
+
+			if game.full?
+				return render json: {
+					success: false,
+					error: "Game is full"
+				}, status: :unprocessable_content
+			end
+
+			if game.players.exists?(current_user.id)
+				return render json: {
+					success: false,
+					error: "Already in game"
+				}, status: :unprocessable_content
+			end
+
+			# mutex time!
 			next_player_id = game.game_session_players.maximum(:player_id).to_i + 1
 			player = game.game_session_players.create!(
 				user_id: current_user.id,
@@ -106,42 +106,44 @@ class GameSessionsController < ApplicationController
 
 		return unless require_host(game)
 		unless game.waiting?
-			return render json: {
+			transopoly/backend/api/app/modelsreturn render json: {
 				success: false,
 				error: "Game cannot be started"
 			}, status: :unprocessable_content
 		end
 
-		players = game.game_session_players.map do |player| {
-			playerId: player.player_id,
-			name: player.user.email
-		}
-		#sent to pythone engine, uses playerId
-		end
-		if players.size < 2
-			return render json: { success: false, error: "Need at least 2 players" }, status: :unprocessable_content
-		end
+		game.with_lock do
+			players = game.game_session_players.map do |player| {
+				playerId: player.player_id,
+				name: player.user.email
+			}
+			#sent to pythone engine, uses playerId
+			end
+			if players.size < 2
+				return render json: { success: false, error: "Need at least 2 players" }, status: :unprocessable_content
+			end
 
-		python_game_id = "game-#{game.id}-#{SecureRandom.hex(4)}"
-		result = PythonGameClient.new.create_game(python_game_id, players)
-		unless result["success"]
-			return render json: {
-				success: false,
-				error: "Python server failed to create a game",
-				details: result
-			}, status: :bad_gateway
+			python_game_id = "game-#{game.id}-#{SecureRandom.hex(4)}"
+			result = PythonGameClient.new.create_game(python_game_id, players)
+			unless result["success"]
+				return render json: {
+					success: false,
+					error: "Python server failed to create a game",
+					details: result
+				}, status: :bad_gateway
+			end
+
+			game.update!(
+				status: "playing",
+				python_game_id: python_game_id
+			)
+
+			render json: {
+				success: true,
+				gameId: game.id,
+				python_game_id: python_game_id
+			}
 		end
-
-		game.update!(
-			status: "playing",
-			python_game_id: python_game_id
-		)
-
-		render json: {
-			success: true,
-			gameId: game.id,
-			python_game_id: python_game_id
-		}
 	end
 
 	ENGINE_FIELDS = [:position, :amount, :tradeId, :toPlayerId, :offerMoney, :requestMoney,
