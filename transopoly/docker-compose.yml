@@ -3,17 +3,48 @@ services:
     build: ./backend/game
     container_name: transopoly-game
     restart: unless-stopped
-    # For testing on your machine only. Once nginx (HTTPS) and Rails are added,
-    # remove "ports" so the engine is reachable only inside the Docker network
-    # (Rails will call it at http://game:8000).
+    # For testing on your machine only. Once nginx (HTTPS) is added, remove
+    # "ports" so the engine is reachable only inside the Docker network
+    # (Rails already calls it at http://game:8000).
     ports:
       - "127.0.0.1:8000:8000"
 
-  # Later:
-  # rails:
-  #   build: ./backend/rails
-  #   environment:
-  #     PYTHON_GAME_SERVER_URL: http://game:8000
-  #   depends_on:
-  #     game:
-  #       condition: service_healthy
+  db:
+    image: postgres:17
+    container_name: transopoly-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ = a literal $ for the shell inside the container, not compose
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No "ports": only reachable inside the Docker network
+
+  api:
+    build: ./backend/api
+    container_name: transopoly-api
+    restart: unless-stopped
+    environment:
+      # DATABASE_URL overrides the connection details in config/database.yml
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PYTHON_GAME_SERVER_URL: http://game:8000
+    volumes:
+      # Dev only: edit code on your machine, the container sees it instantly
+      - ./backend/api:/app
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      game:
+        condition: service_healthy
+
+volumes:
+  db_data:

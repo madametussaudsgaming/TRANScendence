@@ -1,9 +1,9 @@
-# class ApplicationRecord < ActiveRecord::Base
-#   primary_abstract_class
-# end
-
 class ApplicationController < ActionController::API
-    #ActiveRecord Base is for apps that render HTML only
+    #ActionController::Base is for apps that render HTML only
+	rescue_from ActionController::ParameterMissing do |e|
+		render json: { success: false, error: e.message }, status: :bad_request
+	end
+
 	private
 	def current_user
 		return nil unless session[:user_id]

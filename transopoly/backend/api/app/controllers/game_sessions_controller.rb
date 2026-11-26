@@ -74,6 +74,8 @@ class GameSessionsController < ApplicationController
 			}
 		end
 	end
+	
+	# player_id is our databases version of the players seat number
 
 	def leave
 		game = GameSession.find(params[:id])
@@ -105,14 +107,15 @@ class GameSessionsController < ApplicationController
 		game = GameSession.find(params[:id])
 
 		return unless require_host(game)
-		unless game.waiting?
-			transopoly/backend/api/app/modelsreturn render json: {
-				success: false,
-				error: "Game cannot be started"
-			}, status: :unprocessable_content
-		end
-
 		game.with_lock do
+			unless game.waiting?
+				return render json: {
+					success: false,
+					error: "Game cannot be started"
+				}, status: :unprocessable_content
+			end
+
+
 			players = game.game_session_players.map do |player| {
 				playerId: player.player_id,
 				name: player.user.email
@@ -137,11 +140,11 @@ class GameSessionsController < ApplicationController
 				status: "playing",
 				python_game_id: python_game_id
 			)
-
+			# camelCase rule only applies to JSON keys
 			render json: {
 				success: true,
 				gameId: game.id,
-				python_game_id: python_game_id
+				pythonGameId: python_game_id
 			}
 		end
 	end
@@ -149,21 +152,49 @@ class GameSessionsController < ApplicationController
 	ENGINE_FIELDS = [:position, :amount, :tradeId, :toPlayerId, :offerMoney, :requestMoney,
 						:offerJailCards, :requestJailCards, { offerProperties: [], requestProperties: [] }]
 
+
 	def play
+		game, player = find_active_player
+		# i use a returned array so that if find_active_player returns nil, both game and player become nil
+		return unless player
+
+		fields = params.require(:game_action).permit(:action, *ENGINE_FIELDS)
+		#  If the wrapper is missing, the request is rejected with a 400.
+		result = PythonGameClient.new.act(game.python_game_id, player.player_id, fields)
+		render json: result, status: engine_status(result)
+	end
+	# fails with a 400 if the client forgot the wrapper.
+	#permit lets through only action plus the fields
+	#listed in ENGINE_FIELDS. Anything else like fakeing
+	#playerId, is dropped.
+
+	def state
+		game, player = find_active_player
+		return unless player
+
+		result = PythonGameClient.new.state(game.python_game_id, player.player_id)
+		render json: result, status: engine_status(result)
+	end
+
+	private
+
+	def find_active_player
 		game = GameSession.find(params[:id])
 		return unless require_player(game)
 
-		player = game.game_session_players.find_by(user_id: current_user.id)
-		unless player
-			return render json: {
+		unless game.playing?
+			render json: {
 				success: false,
-				error: "Player not found"
-			}, status: :forbidden
+				error: "Game is not in progress"
+			}, status: :unprocessable_content
+			return
 		end
-    	result = PythonGameClient.new.roll(
-			game.python_game_id,
-			player.player_id
-		)
-		render json: result
+
+		return [game, game.game_session_players.find_by!(user_id: current_user.id)]
+	end
+
+	def engine_status(result)
+		return :ok if result["success"]
+		result["error"] == "Game engine unavailable" ? :bad_gateway : :unprocessable_content
 	end
 end
